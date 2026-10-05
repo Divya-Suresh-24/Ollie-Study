@@ -7,7 +7,7 @@ window.STUDY_CONFIG = {
 
   // Google Apps Script web-app URL (ends in /exec). Leave empty to run with
   // no backend: groups are then random in the browser and logs stay local.
-  appsScriptUrl: "",
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycbwqXKMYsdbwnRiVlwzOlBpVGJhZbsxG-R5TjaTQPW5NKUscjh2s1oWMj9-2j4DrwSUO/exec",
 
   // Qualtrics survey (survey → retention quiz → background questions).
   // {code} {sid} {group} {condition} are filled in automatically.

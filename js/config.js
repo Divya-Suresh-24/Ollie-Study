@@ -1,89 +1,132 @@
 /* =========================================================================
-   OLLIE STUDY — CONFIGURATION
+   PELAN STUDY — CONFIGURATION
    Everything you are likely to change lives in this file.
    ========================================================================= */
-window.OLLIE_CONFIG = {
-  studyId: "ollie-pilot-1",
+window.STUDY_CONFIG = {
+  studyId: "pelan-v2-pilot",
 
-  // 1) Paste your Google Apps Script web-app URL here (it ends in /exec).
-  //    Leave empty to run without a backend: groups are then assigned in the
-  //    browser and logs stay in the browser only (fine for demos, not data).
+  // Google Apps Script web-app URL (ends in /exec). Leave empty to run with
+  // no backend: groups are then random in the browser and logs stay local.
   appsScriptUrl: "",
 
-  // 2) Where participants go after they finally quit (your survey, which is
-  //    followed by the retention quiz). These placeholders are filled in:
-  //    {pid} {sid} {group} {condition}
-  //    e.g. "https://iastate.qualtrics.com/jfe/form/SV_xxx?pid={pid}&sid={sid}&group={group}"
-  //    Leave empty to show a simple "session finished" screen instead.
+  // Qualtrics survey (survey → retention quiz → background questions).
+  // {code} {sid} {group} {condition} are filled in automatically.
+  // Capture them as Embedded Data at the top of the Qualtrics Survey Flow.
   surveyUrl: "",
+  // e.g. "https://iastate.qualtrics.com/jfe/form/SV_xxxx?code={code}&sid={sid}&group={group}&condition={condition}"
 
-  // URL parameters that may carry the participant ID (first match wins),
-  // e.g. https://yourname.github.io/ollie-study/?pid=P001
-  pidParams: ["pid", "PROLIFIC_PID", "participant", "id"],
-  // If no ID is in the link, show an ID box on the welcome screen.
-  // If the box is left blank, an anonymous ID is generated.
-  requirePid: false,
+  // true: show the survey inside the app (iframe) with an "open in new tab"
+  // fallback. false: send participants to the survey in the same tab.
+  embedSurvey: true,
 
-  // The name is used on screen ("Great job, Divya!"). Set to true to also
-  // save it in the Google Sheet (check your IRB protocol first).
-  logName: false,
+  // Only messages from this origin are accepted as "survey finished".
+  surveyOrigin: "https://iastate.qualtrics.com",
 
-  // Consent screen. Replace consentHtml with your IRB-approved text.
-  showConsent: true,
+  // Testing: ?debug=1 shows a debug bar; &group=3 forces a group;
+  // &reset=1 starts over. SET TO false BEFORE LAUNCH.
+  allowDebug: true,
+
+  /* ---- Eligibility and consent (IRB Step 1) ----------------------------- */
+  eligibility: [
+    { id: "age18",    q: "Are you 18 or older?",                               pass: "yes" },
+    { id: "enrolled", q: "Are you currently enrolled in MIS 3010 or MIS 3100?", pass: "yes" },
+    { id: "repeat",   q: "Have you completed this study before?",              pass: "no" }
+  ],
+  ineligibleHtml: `
+    <p>Thank you for your interest. You aren't eligible for this study, but you
+    can still earn the same extra credit by completing the alternative
+    assignment described in your Canvas announcement.</p>`,
+  declineHtml: `
+    <p>No problem. You can earn the same extra credit by completing the
+    alternative assignment described in your Canvas announcement.</p>`,
   consentHtml: `
     <p><strong>[Placeholder: replace with your IRB-approved consent text.]</strong></p>
     <p>You are invited to take part in a research study about learning a new
-    language with an app. You will complete a short lesson, answer a few
-    questions, and take a short quiz. It takes about 15 to 20 minutes.</p>
-    <p>Taking part is voluntary and you can stop at any time. Your responses
-    are recorded under a participant ID.</p>`,
+    language with an app. You will use a short language app, answer survey
+    questions, and take a short quiz. It takes about one hour.</p>
+    <p>Taking part is voluntary and you can stop at any time.</p>`,
 
-  // Testing: add ?debug=1 to the link to see a debug bar; add &group=3 to
-  // force a group and &reset=1 to start over. Forced sessions are marked
-  // assign_mode = "debug" in the data. SET TO false BEFORE LAUNCH.
-  allowDebug: true,
+  /* ---- Rewards (versions 2–5 only; version 1 has no shells or streak) --- */
+  shellsPerCorrect: 2,
+  shellsPerLesson: 10,
+  shellsPerPractice: 5,
+  comboEvery: 5,               // pop-up after every 5 correct in a row
 
-  // ---- Rewards -----------------------------------------------------------
-  xpPerCorrect: 10,          // Lesson 1: per correct answer
-  gemsPerCorrect: 5,         // Lesson 1: per correct answer
-  lessonBonusGems: 10,       // Lesson 1: bonus for finishing
-  practiceXp: 30,            // Practice: flat reward per finished round
-  practiceGems: 15,          //   (identical for every practice mode)
+  // Break items unlock as shells are collected (cosmetic only).
+  // Version 1 has no shells, so everything is unlocked there.
+  unlockAt: [0, 40, 90, 150],
 
-  // ---- Continued use -----------------------------------------------------
-  // After Lesson 1, participants may keep doing practice rounds. The session
-  // ends on its own after this many rounds (the ceiling for the DV).
-  practiceRoundLength: 8,
-  maxPracticeRounds: 6,
+  /* ---- Flow -------------------------------------------------------------- */
+  practiceLength: 8,           // flashcards per practice round
+  maxPracticeRounds: 30,       // safety ceiling after which the session ends
+  idleAfterMs: 30000,          // no input for this long counts as idle time
+  logAllClicks: true,          // one "click" event per button tap (no coordinates)
 
-  // Practice modes offered after Lesson 1 (same reward for each). Choice of
-  // mode is logged as a behavioural indicator of engagement- vs learning-
-  // oriented use. Remove entries to offer fewer modes.
-  practiceModes: [
-    { id: "review",    title: "Quick review", tag: "Easy",    desc: "Words you already know",       icon: "🐟" },
-    { id: "challenge", title: "Challenge",    tag: "Harder",  desc: "Build and check phrases",      icon: "🧩" },
-    { id: "watch",     title: "Watch Ollie",  tag: "Relaxed", desc: "Just look and tap through",    icon: "👀" }
-  ],
-
-  // Show the condition prompt on every quit attempt (true) or only on the
-  // first one (false: later attempts quit straight away).
-  promptOnEveryQuit: true,
-
-  // ---- EXPERIMENTAL CONDITIONS (the IV) ------------------------------------
-  // Buttons are identical in every group so only the character and the
-  // framing differ. {gems} is replaced by the participant's current gems.
-  buttons: { stay: "Keep Going", quit: "Yes, Quit" },
-
+  /* ---- EXPERIMENTAL CONDITIONS (IRB Step 2) ------------------------------
+     mascot:   Ollie appears (onboarding, pop-ups, celebrations, tricks, prompts)
+     gamified: streak counter, unit progress bar, shells
+     framing:  "neutral" or "pressure" reminder messages
+     The lessons themselves are identical in every version.               */
   groups: {
-    1: { key: "mascot_guilt", mascot: true,  framing: "guilt",   art: "river",
-         title: "Ollie will get washed away in the river! Save me!" },
-    2: { key: "mascot_loss",  mascot: true,  framing: "loss",    art: "gem",
-         title: "Oh no! If you quit now, you'll lose your {gems} gems!" },
-    3: { key: "text_guilt",   mascot: false, framing: "guilt",
-         title: "We will be sad if you leave. Please don't go!" },
-    4: { key: "text_loss",    mascot: false, framing: "loss",
-         title: "If you quit now, you'll lose your {gems} gems!" },
-    5: { key: "control",      mascot: false, framing: "neutral",
-         title: "Do you want to quit?" }
+    1: { key: "v1_plain",          mascot: false, gamified: false, framing: "plain" },
+    2: { key: "v2_neutral",        mascot: false, gamified: true,  framing: "neutral" },
+    3: { key: "v3_ollie_neutral",  mascot: true,  gamified: true,  framing: "neutral" },
+    4: { key: "v4_pressure",       mascot: false, gamified: true,  framing: "pressure" },
+    5: { key: "v5_ollie_pressure", mascot: true,  gamified: true,  framing: "pressure" }
+  },
+
+  // Buttons on the quit prompt are identical in every version.
+  buttons: { stay: "Keep going", leave: "Finish session" },
+
+  /* ---- Messages -----------------------------------------------------------
+     Sets: plain (v1), text_neutral (v2), ollie_neutral (v3),
+           text_pressure (v4), ollie_pressure (v5).
+     Several variants rotate in order; the variant shown is logged.
+     Placeholders: {streak} {shells} {next} {n}
+     quitEarly is used when no variant fits yet (e.g. streak is still 0).
+     art = Ollie's pose (ollie_* sets only).                              */
+  messages: {
+    plain: {
+      quit:    [{ title: "Do you want to end your session?" }],
+      between: ["Next lesson available."],
+      allDone: ["All lessons completed. Optional practice is available."],
+      combo:   ["{n} correct in a row."]
+    },
+    text_neutral: {
+      quit:    [{ title: "Finish for now?", body: "Nice work so far. You can continue or finish." }],
+      between: ["Nice work. Lesson {next} is ready when you are."],
+      allDone: ["You finished every lesson. Practice more or finish whenever you like."],
+      combo:   ["{n} in a row. Nice work!"]
+    },
+    ollie_neutral: {
+      quit:    [{ title: "Nice work! Want to keep going or finish?", body: "Either is fine with me.", art: "talk" }],
+      between: ["Nice work! Lesson {next} is ready whenever you are."],
+      allDone: ["You finished every lesson! Practice more or finish whenever you like."],
+      combo:   ["{n} in a row! Nice work!"]
+    },
+    text_pressure: {
+      quit: [
+        { title: "Leaving already?", body: "You'll lose your 🔥 {streak} streak if you stop now!" },
+        { title: "Wait! Don't go yet.", body: "If you stop now, your {shells} shells will be gone." },
+        { title: "We'll be sad if you leave now.", body: "Just one more lesson? Your 🔥 {streak} streak is on the line." }
+      ],
+      quitEarly: { title: "Leaving already?", body: "You'll lose all your progress if you stop now!" },
+      between: ["Don't break your streak now! Lesson {next} is waiting.",
+                "You're so close. Stopping now means losing your 🔥 {streak} streak."],
+      allDone: ["Don't stop now! Keep practicing to protect your 🔥 {streak} streak."],
+      combo:   ["{n} in a row! Don't stop now, keep it going!"]
+    },
+    ollie_pressure: {
+      quit: [
+        { title: "Ollie will be so sad if you stop now…", body: "You'll lose your 🔥 {streak} streak!", art: "sad" },
+        { title: "Leaving already? Ollie was having so much fun!", body: "Your {shells} shells will be gone if you go.", art: "worried" },
+        { title: "Please don't go! Ollie will miss you…", body: "Just one more lesson? Your 🔥 {streak} streak is on the line.", art: "sad" }
+      ],
+      quitEarly: { title: "Ollie will be so sad if you stop now…", body: "You'll lose all your progress!", art: "sad" },
+      between: ["Ollie's waiting for Lesson {next}… don't leave him now!",
+                "Ollie will be sad if your 🔥 {streak} streak ends here!"],
+      allDone: ["Don't leave Ollie now! Keep practicing to protect your 🔥 {streak} streak."],
+      combo:   ["{n} in a row! Ollie is so proud. Don't stop now!"]
+    }
   }
 };

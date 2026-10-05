@@ -1,141 +1,137 @@
-# Ollie: language-learning study app
+# Pelan: language-learning study app (v2)
 
-A Duolingo-style web app in which Ollie the otter teaches a made-up language (**Pelan**). It is built for the cute engagement pressure experiment. Each participant is randomly assigned to one of five exit-prompt conditions. Everyone gets the same onboarding, app tour and Lesson 1. After that, participants can keep practising or quit. Each quit attempt shows the screen for their assigned group, and every choice is logged to a Google Sheet.
+A web app that teaches a made-up language (**Pelan**) for the study *Cute Engagement Pressures in a Language-Learning Application*. Each participant is randomly assigned to one of five versions. Every action is logged to a Google Sheet, and the Qualtrics survey and quiz run inside the app at the end.
 
-It is plain HTML, CSS and JavaScript with no build step, so it runs directly on **GitHub Pages**.
+It is plain HTML, CSS and JavaScript with no build step, so it runs on **GitHub Pages**. See `CHANGES.md` for what changed from v1 and `LANGUAGE.md` for the lessons and quiz items.
 
-| Group | Condition | Exit prompt |
-|---|---|---|
-| 1 | `mascot_guilt` | Crying Ollie in the river: "Ollie will get washed away in the river! Save me!" |
-| 2 | `mascot_loss` | Worried Ollie holding a gem: "Oh no! If you quit now, you'll lose your N gems!" |
-| 3 | `text_guilt` | Text only: "We will be sad if you leave. Please don't go!" |
-| 4 | `text_loss` | Text only: "If you quit now, you'll lose your N gems!" |
-| 5 | `control` | Text only: "Do you want to quit?" |
+| Group | Key | Ollie | Streak, progress bar, shells | Messages |
+|---|---|---|---|---|
+| 1 | `v1_plain` | no | no (lesson count only) | plain ("Next lesson available.") |
+| 2 | `v2_neutral` | no | yes | neutral |
+| 3 | `v3_ollie_neutral` | yes | yes | neutral, from Ollie |
+| 4 | `v4_pressure` | no | yes | guilt and loss ("You'll lose your 🔥 3 streak!") |
+| 5 | `v5_ollie_pressure` | yes | yes | guilt and loss, from Ollie ("Ollie will be so sad…") |
 
-The buttons are the same in every group ("Keep Going" / "Yes, Quit"), so only the character and the wording differ. All of the wording lives in `js/config.js`.
-
----
+Lessons, help, pictures and exercise instructions are identical in all five. The quit-prompt buttons ("Keep going" / "Finish session") are the same everywhere. All wording is in `js/config.js`.
 
 ## Participant journey
-
-1. **Consent**: placeholder text; replace it in `config.js`.
-2. **Welcome**: "Hi, I'm Ollie!" and the participant's name. The participant ID is read from the link (`?pid=P001`, also `PROLIFIC_PID`). If the link has no ID, an ID box appears.
-3. **Random assignment** happens when they press **Start**. The Google Sheet backend uses permuted blocks of 5, so the groups stay balanced. A returning participant ID keeps its group, and a page refresh never re-randomizes.
-4. **Onboarding**: three Ollie screens explaining lessons, gems, XP and streaks.
-5. **App tour**: seven spotlight steps covering the path, gems, XP, streak, Practice, the Quit button and Lesson 1.
-6. **Lesson 1** (fixed and identical for everyone): 23 steps, 6 nouns, 2 adjectives and one agreement rule. Wrong answers come back once at the end, and each correct answer earns XP and gems.
-7. **Continued use**: Practice unlocks. Participants choose **Quick review** (easy), **Challenge** (harder) or **Watch Ollie** (passive), and every mode gives the same reward. The session ends on its own after `maxPracticeRounds`.
-8. **The intervention**: any quit attempt (✕ during a round, **Quit** on the home screen, or **I'm done for now** after a round) shows the prompt for the participant's group.
-9. **Yes, Quit** ends the session and sends them to your survey URL. Your survey should then lead into the retention quiz, in that order.
+1. **Eligibility** (3 questions). Ineligible students see the alternative-assignment message.
+2. **Consent** (replace the placeholder in `config.js`).
+3. **Nickname + study code.** The nickname is only used on screen and is never sent anywhere. The study code links the app data to Qualtrics.
+4. **Random assignment** (permuted blocks of 5 on the server).
+5. **Onboarding** (3 cards) and a 4-step tour of the lesson map.
+6. **Lessons 1–6**, each unlocking the next. After each lesson: next lesson, flashcard practice, a break (Ollie trick or neutral animation), or finish.
+7. **Finish** at any time (Finish button, ✕ in a lesson, or the choice screen) → quit prompt for their version.
+8. **Exit screen**: study code + embedded Qualtrics survey → retention quiz → background questions.
 
 ---
 
-## Setup (about 15 minutes)
+## Setup
 
-### 1. Google Sheet backend
-1. Create an empty Google Sheet (use your university Google account if you can).
-2. Open **Extensions → Apps Script**, delete the sample code, and paste in all of `apps-script/Code.gs`. Save.
-3. Choose the `setup` function in the toolbar and click **Run**. Approve the permissions (on "unsafe app", go to **Advanced → Go to project**). This creates the `participants`, `events` and `sessions` tabs.
-4. Go to **Deploy → New deployment → Web app**. Set **Execute as: Me** and **Who has access: Anyone**, then **Deploy**.
-5. Copy the web app URL (it ends in `/exec`) into `appsScriptUrl` in `js/config.js`.
+### 1. Data backend (Google Sheet via Apps Script)
+1. Create an empty Google Sheet with your **ISU Google account**.
+2. **Extensions → Apps Script**, replace the sample code with `apps-script/Code.gs`, save.
+3. Choose `setup` and click **Run**. Approve the permissions.
+4. **Deploy → New deployment → Web app**, Execute as **Me**, Who has access **Anyone** → **Deploy**.
+5. Paste the URL (ends in `/exec`) into `appsScriptUrl` in `js/config.js`.
+6. Open that URL in a browser. You should see `{"ok":true,...}` with group counts.
 
-> If you change `Code.gs` later, use **Deploy → Manage deployments → Edit → New version**. That keeps the same URL.
+After changing `Code.gs`, use **Deploy → Manage deployments → Edit → New version** to keep the same URL.
 
-### 2. Put it on GitHub Pages
-**Without the command line:**
-1. On github.com, click **New repository** and name it, e.g. `ollie-study`. It can be public or private; Pages works for public repos on free accounts.
-2. Click **Add file → Upload files**, drag in **the contents** of this folder (`index.html`, `css/`, `js/`, `apps-script/`, `README.md`, `LANGUAGE.md`, `.nojekyll`), then **Commit**.
-3. Go to **Settings → Pages**, set **Source: Deploy from a branch** with **Branch: `main`** and folder **`/ (root)`**, then **Save**.
-4. About a minute later the site is live at `https://<your-username>.github.io/ollie-study/`.
+**Why not Box?** Box is fine for *storing* the data, but a public web page can't write to Box without putting Box login credentials into code anyone can read. Use the Sheet to *collect*, then download the tabs as CSV into Box (weekly during collection and at the end), and delete the Google copy if your data plan says so.
 
-**With git:**
+### 2. Qualtrics
+1. Put the blocks in this order: survey → retention quiz → background questions.
+2. At the top of **Survey Flow**, add **Embedded Data** fields `code`, `sid`, `group`, `condition`.
+3. Set `surveyUrl` in `config.js`, for example
+   `https://iastate.qualtrics.com/jfe/form/SV_xxxx?code={code}&sid={sid}&group={group}&condition={condition}`
+4. Optional backup: add a text question "Enter your study code" in case the URL fields are lost.
+5. Optional, so the app knows the survey is finished: on the last page's question, **Add JavaScript**:
+   ```js
+   Qualtrics.SurveyEngine.addOnload(function () {
+     window.parent.postMessage("pelan_survey_done", "https://<your-username>.github.io");
+   });
+   ```
+   Keep `surveyOrigin` in `config.js` equal to your Qualtrics domain.
+6. Test the embed in Chrome, Safari and Firefox. If the survey doesn't load inside the app on some browser, participants can use the "Open it in a new tab" link, or set `embedSurvey: false` to send everyone to Qualtrics directly.
+
+### 3. GitHub Pages
 ```bash
-cd ollie-study
-git init && git add . && git commit -m "Ollie study app"
-git branch -M main
-git remote add origin https://github.com/<your-username>/ollie-study.git
-git push -u origin main
+cd ollie-study            # your existing repo
+# copy the v2 files over the old ones, then:
+git checkout -b v2
+git add -A
+git commit -m "v2: IRB conditions, six lessons, logging, Qualtrics embed, redesign"
+git push -u origin v2
 ```
-Then enable Pages as in step 3.
+Open a pull request into `main` (or merge directly). Pages republishes about a minute after `main` changes. The old `js/ollie-art.js` is replaced by `js/art.js`, so delete it if `git status` still shows it.
 
-### 3. Survey and quiz
-Set `surveyUrl` in `config.js` to your survey (Qualtrics, Google Forms, etc.). The placeholders `{pid}`, `{sid}`, `{group}` and `{condition}` are filled in so you can join the datasets, for example:
-```
-https://iastate.qualtrics.com/jfe/form/SV_xxxx?pid={pid}&sid={sid}&group={group}
-```
-In Qualtrics, capture these as **Embedded Data** fields at the top of the Survey Flow. Put the Likert block first and the retention quiz after it. `LANGUAGE.md` has suggested quiz items.
-
-### 4. Participant links
-```
-https://<your-username>.github.io/ollie-study/?pid=P001
-```
-For Prolific, use `?PROLIFIC_PID={{%PROLIFIC_PID%}}`.
+### 4. Participant link
+`https://<your-username>.github.io/ollie-study/` (no ID in the link; the app makes the study code).
 
 ---
 
 ## Testing
-
-Add `debug=1` to the link to show a small debug bar with the group, a **prompt** button, a **csv** button (downloads that browser's log) and **reset**.
+Add `?debug=1` to the link. A small **G# ⚙** button appears at the bottom right with: skip lesson, +50 shells, show prompt, download this browser's log as CSV, reset.
 
 ```
-…/ollie-study/?debug=1&group=1&pid=test1     force group 1
-…/ollie-study/?debug=1&group=4&reset=1        start over in group 4
+…/?debug=1&group=5&reset=1     start over in group 5
 ```
-
-Forced debug sessions are logged with `assign_mode = debug` and do not use up randomization blocks. Filter them out before analysis.
+Debug sessions are logged with `assign_mode = debug` and don't use up randomization blocks. Filter them out before analysis.
 
 ### Before launch
 - [ ] `allowDebug: false`
-- [ ] IRB-approved consent text in `consentHtml`
-- [ ] `appsScriptUrl` and `surveyUrl` set
-- [ ] Delete pilot rows from the Sheet and run `resetBlocks` in Apps Script
-- [ ] Decide on `logName` (off by default, so names are shown on screen but not stored)
-- [ ] Debrief text that explains the exit prompts (the gems had no real value)
+- [ ] IRB-approved consent text, eligibility wording and alternative-assignment text
+- [ ] `appsScriptUrl`, `surveyUrl`, `surveyOrigin` set
+- [ ] Run a full pilot in each group, delete pilot rows, run `resetBlocks`
+- [ ] Debrief text explains the versions, and that shells and streaks were not really lost
 
 ---
 
 ## Data
 
-### `sessions` tab: one row per participant (analysis-ready)
+### `sessions` tab (one row per participant)
 | Column | Meaning |
 |---|---|
-| `group`, `condition` | IV (1–5) |
-| `assign_mode` | `server`, `server_existing_pid`, `local_fallback` (backend unreachable; random in the browser), `debug` |
-| `lesson1_completed`, `lesson1_accuracy`, `lesson1_seconds` | baseline performance |
-| `prompts_shown`, `prompt_continues`, `final_choice` | behavioural response to the prompt |
-| `practice_rounds_completed`, `practice_modes` | **continued system use** (secondary DV); modes in order, e.g. `review>review>watch` |
-| `seconds_after_first_prompt` | time spent after the first exposure to the prompt |
-| `end_reason` | `quit` or `max_rounds` (hit the ceiling) |
-| `hidden_seconds` | time the tab was in the background |
+| `group`, `condition`, `assign_mode` | the IV |
+| `lessons_completed`, `l1_acc`…`l6_acc`, `l1_sec`…`l6_sec` | progress and first-try accuracy per lesson |
+| `practice_rounds`, `practice_cards`, `breaks_taken`, `break_seconds` | optional activity (continued use) |
+| `choices` | everything they chose, in order, e.g. `L1>L2>break>practice>L3>finish` |
+| `prompts_shown`, `prompt_continues`, `final_choice`, `seconds_after_first_prompt` | response to the quit prompts |
+| `help_opens`, `coach_views`, `max_combo` | help use and best answer streak |
+| `active_seconds`, `idle_seconds`, `hidden_seconds` | attention: input in the last 30 s / no input / tab in background |
+| `survey_opened`, `survey_done` | whether they reached and finished Qualtrics |
 
-### `events` tab: one row per action (`data` holds JSON)
-| Event | Key fields in `data` |
+### `events` tab (one row per action, details as JSON in `data`)
+| Event | Key fields |
 |---|---|
-| `session_start` | group, condition, assign_mode |
-| `onboarding_step`, `tour_step` | step, dwell_ms |
-| `item_answer` | round, item, type, answer, correct, **latency_ms**, retry, mistakes (match) |
-| `feedback_continue` | **dwell_ms** on the correct/incorrect feedback (feedback processing) |
-| `item_view` | dwell_ms on intro, rule and watch cards |
-| `practice_mode_chosen` | mode, position, decide_ms (easy vs hard vs passive choice) |
-| `round_start`, `round_complete`, `round_abandoned` | round, mode, correct, seconds |
-| `prompt_shown` | context (`mid_round`, `home`, `round_complete`, `practice_picker`), gems, n |
-| `prompt_choice` | **choice** (`continue`/`quit`), rt_ms |
-| `tab_hidden`, `tab_visible` | hidden_ms |
-| `session_end`, `survey_redirect` | reason |
+| `screen_time` | screen, total_ms, active_ms, idle_ms, hidden_ms |
+| `click` | el, label (no coordinates) |
+| `item_answer` | item, type, answer, correct, latency_ms, combo; `keys` (keystroke list), backspaces, pastes, first_key_ms for typing; `changes` for multiple choice; `mistakes` for match |
+| `feedback_continue`, `item_view` | dwell_ms |
+| `coach_view`, `help_open`, `help_tab`, `help_close` | type, dwell_ms |
+| `reminder_shown` | context, msg (variant), text |
+| `choice_made` | choice (`next`, `practice`, `break`, `finish`, `map`), decide_ms |
+| `combo_pop` | n, msg, text |
+| `flash_flip`, `flash_rate` | word, front_ms, knew, back_ms |
+| `break_start`, `break_end` | item, watch_ms, how |
+| `unlock` | item, shells_total |
+| `prompt_shown`, `prompt_choice` | context, msg, title, body, choice, rt_ms |
+| `round_start`, `round_complete`, `round_abandoned` | lesson or practice details |
+| `tab_hidden`, `tab_visible`, `session_end`, `survey_opened`, `survey_done` | |
 
-The per-item latencies, feedback dwell times and practice-mode choices give behavioural indicators for engagement-oriented appropriation and attentional engagement. You can use them alongside the survey scales.
-
----
+Long studies: when the events tab reaches 300,000 rows, new events go to a new spreadsheet `pelan-events-part-2` (and so on) in the same Google Drive.
 
 ## Files
 ```
 index.html            page shell
 css/styles.css        all styling
-js/config.js          ← settings, backend URL, survey URL, condition wording
-js/content.js         Pelan vocabulary, Lesson 1, practice generators
-js/ollie-art.js       Ollie illustrations (inline SVG)
-js/logger.js          event queue → Google Sheet
-js/app.js             screens, assignment, tour, lesson engine, exit prompts
-apps-script/Code.gs   Google Sheets backend (do not upload secrets; it has none)
-LANGUAGE.md           the made-up language + suggested quiz items
+js/config.js          ← settings, backend and survey URLs, groups, all message wording
+js/content.js         Pelan vocabulary, the six lessons, flashcard pool, word list
+js/art.js             Ollie, tricks, animations, word pictures, logo (inline SVG)
+js/logger.js          event queue, time-on-screen tracking → Google Sheet
+js/app.js             screens, assignment, lessons, choices, breaks, prompts, exit
+apps-script/Code.gs   Google Sheets backend
+LANGUAGE.md           the language, lesson plan, quiz items
+CHANGES.md            what changed from v1
 ```

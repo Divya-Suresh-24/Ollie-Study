@@ -1,33 +1,46 @@
 /**
- * OLLIE STUDY — Google Apps Script backend
+ * PELAN STUDY — Google Apps Script backend
  * -------------------------------------------------------------------------
- * Paste this into Extensions → Apps Script of an empty Google Sheet, then
- * Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone).
+ * Paste into Extensions → Apps Script of an empty Google Sheet (use your
+ * ISU Google account). Run `setup` once, then Deploy → New deployment →
+ * Web app (Execute as: Me, Who has access: Anyone).
  *
- * It creates three tabs automatically:
- *   participants  one row per assignment (group is decided here)
+ * Tabs:
+ *   participants  one row per assignment (the group is decided here)
  *   events        every logged action (one row per event)
- *   sessions      one summary row per session, kept up to date
+ *   sessions      one summary row per participant, kept up to date
  *
- * Group assignment uses PERMUTED BLOCKS of 5: every 5 real participants get
- * groups 1–5 in a fresh random order, so the groups stay balanced even if
- * recruitment stops early. A participant ID that returns keeps its group.
+ * Assignment uses PERMUTED BLOCKS of 5: every 5 real participants receive
+ * versions 1–5 in a fresh random order, so group sizes never differ by
+ * more than one. Debug sessions (?debug=1) never use up a block.
+ *
+ * Apps Script never sees participants' IP addresses, and the app sends no
+ * names: only a random session id and the participant's study code.
+ *
+ * A Google Sheet holds at most 10 million cells. When the events tab passes
+ * EVENTS_PER_FILE rows, new events go to a fresh spreadsheet named
+ * "pelan-events-part-N" in the same Drive. Combine the parts for analysis.
  */
 
-const CONDITIONS = { 1: "mascot_guilt", 2: "mascot_loss", 3: "text_guilt", 4: "text_loss", 5: "control" };
+const CONDITIONS = { 1: "v1_plain", 2: "v2_neutral", 3: "v3_ollie_neutral", 4: "v4_pressure", 5: "v5_ollie_pressure" };
+const BLOCK = [1, 2, 3, 4, 5];
+const EVENTS_PER_FILE = 300000;
 
 const HEADERS = {
-  participants: ["server_ts", "study_id", "pid", "pid_source", "sid", "group", "condition", "assign_mode", "user_agent"],
-  events: ["server_ts", "client_ts", "t_ms", "study_id", "sid", "pid", "group", "condition", "assign_mode", "screen", "event", "data"],
-  sessions: ["sid", "pid", "pid_source", "study_id", "group", "condition", "assign_mode", "started_at", "ended_at", "end_reason",
-    "tour_completed", "lesson1_completed", "lesson1_graded", "lesson1_correct", "lesson1_accuracy", "lesson1_seconds",
-    "practice_rounds_started", "practice_rounds_completed", "practice_modes", "prompts_shown", "prompt_continues",
-    "final_choice", "first_prompt_at", "seconds_after_first_prompt", "gems", "xp", "streak", "session_seconds",
-    "hidden_seconds", "name", "user_agent", "updated_at"]
+  participants: ["server_ts", "study_id", "code", "sid", "group", "condition", "assign_mode", "user_agent"],
+  events: ["server_ts", "client_ts", "t_ms", "study_id", "sid", "code", "group", "condition", "assign_mode", "screen", "event", "data"],
+  sessions: ["sid", "code", "study_id", "group", "condition", "assign_mode", "started_at", "ended_at", "end_reason",
+    "lessons_completed", "l1_acc", "l2_acc", "l3_acc", "l4_acc", "l5_acc", "l6_acc",
+    "l1_sec", "l2_sec", "l3_sec", "l4_sec", "l5_sec", "l6_sec",
+    "practice_rounds", "practice_cards", "breaks_taken", "break_seconds", "help_opens", "coach_views",
+    "prompts_shown", "prompt_continues", "final_choice", "first_prompt_at", "seconds_after_first_prompt", "choices",
+    "shells", "shells_total", "streak", "max_combo",
+    "session_seconds", "active_seconds", "idle_seconds", "hidden_seconds",
+    "survey_opened", "survey_done", "user_agent", "updated_at"]
 };
 
 function doGet() {
-  return json({ ok: true, service: "ollie-study", time: new Date().toISOString() });
+  return json({ ok: true, service: "pelan-study", time: new Date().toISOString(), counts: groupCounts_() });
 }
 
 function doPost(e) {
@@ -36,9 +49,9 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(25000);
   try {
-    if (body.action === "assign") return json(assign(body));
-    if (body.action === "log") return json(logEvents(body.events || []));
-    if (body.action === "summary") return json(upsertSummary(body.summary || {}));
+    if (body.action === "assign") return json(assign_(body));
+    if (body.action === "log") return json(logEvents_(body.events || []));
+    if (body.action === "summary") return json(upsertSummary_(body.summary || {}));
     return json({ ok: false, error: "unknown action" });
   } catch (err) {
     return json({ ok: false, error: String(err) });
@@ -48,36 +61,22 @@ function doPost(e) {
 }
 
 /* ------------------------------ assignment ------------------------------ */
-function assign(b) {
-  const sh = sheet("participants");
+function assign_(b) {
+  const sh = sheet_("participants");
   const studyId = String(b.studyId || "");
-  const pid = String(b.pid || "");
-
-  // Returning participant (real ID, not a generated one): keep their group.
-  if (pid && b.pidSource !== "generated" && !b.debug && sh.getLastRow() > 1) {
-    const rows = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
-    for (let i = rows.length - 1; i >= 0; i--) {
-      if (String(rows[i][1]) === studyId && String(rows[i][2]) === pid && rows[i][7] !== "debug") {
-        const g = Number(rows[i][5]);
-        sh.appendRow(safeRow([new Date(), studyId, pid, b.pidSource, b.sid, g, CONDITIONS[g], "server_existing_pid", b.userAgent]));
-        return { ok: true, group: g, existing: true };
-      }
-    }
-  }
-
   let group, mode;
-  if (b.debug) { group = 1 + Math.floor(Math.random() * 5); mode = "debug"; }   // tests don't use up blocks
-  else { group = nextFromBlock(studyId); mode = "server"; }
-  sh.appendRow(safeRow([new Date(), studyId, pid, b.pidSource, b.sid, group, CONDITIONS[group], mode, b.userAgent]));
-  return { ok: true, group: group, existing: false };
+  if (b.debug) { group = 1 + Math.floor(Math.random() * 5); mode = "debug"; }
+  else { group = nextFromBlock_(studyId); mode = "server"; }
+  sh.appendRow(safeRow_([new Date(), studyId, b.code, b.sid, group, CONDITIONS[group], mode, b.userAgent]));
+  return { ok: true, group: group };
 }
 
-function nextFromBlock(studyId) {
+function nextFromBlock_(studyId) {
   const props = PropertiesService.getScriptProperties();
   const key = "block_" + studyId;
   let block = JSON.parse(props.getProperty(key) || "[]");
   if (!block.length) {
-    block = [1, 2, 3, 4, 5];
+    block = BLOCK.slice();
     for (let i = block.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = block[i]; block[i] = block[j]; block[j] = t; }
   }
   const g = block.shift();
@@ -85,22 +84,47 @@ function nextFromBlock(studyId) {
   return g;
 }
 
+/** Assignments per group (excluding debug). Also shown by doGet. */
+function groupCounts_() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("participants");
+  const out = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  if (!sh || sh.getLastRow() < 2) return out;
+  sh.getRange(2, 5, sh.getLastRow() - 1, 3).getValues().forEach(r => { if (r[2] !== "debug" && out[r[0]] !== undefined) out[r[0]]++; });
+  return out;
+}
+
 /* -------------------------------- logging ------------------------------- */
-function logEvents(events) {
+function eventsSheet_() {
+  const props = PropertiesService.getScriptProperties();
+  const extId = props.getProperty("events_file");
+  let sh = extId ? SpreadsheetApp.openById(extId).getSheetByName("events") : sheet_("events");
+  if (sh.getLastRow() >= EVENTS_PER_FILE) {
+    const part = Number(props.getProperty("events_part") || "1") + 1;
+    const ss = SpreadsheetApp.create("pelan-events-part-" + part);
+    sh = ss.getSheets()[0].setName("events");
+    sh.getRange(1, 1, 1, HEADERS.events.length).setValues([HEADERS.events]).setFontWeight("bold");
+    sh.setFrozenRows(1);
+    props.setProperty("events_file", ss.getId());
+    props.setProperty("events_part", String(part));
+  }
+  return sh;
+}
+
+function logEvents_(events) {
   if (!events.length) return { ok: true, n: 0 };
-  const sh = sheet("events");
+  const sh = eventsSheet_();
   const now = new Date();
-  const rows = events.slice(0, 500).map(e => safeRow([now, e.client_ts, e.t_ms, e.study_id, e.sid, e.pid, e.group,
+  const rows = events.slice(0, 500).map(e => safeRow_([now, e.client_ts, e.t_ms, e.study_id, e.sid, e.code, e.group,
     e.condition, e.assign_mode, e.screen, e.event, e.data]));
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEADERS.events.length).setValues(rows);
   return { ok: true, n: rows.length };
 }
 
-function upsertSummary(s) {
+function upsertSummary_(s) {
   if (!s.sid) return { ok: false, error: "no sid" };
-  const sh = sheet("sessions");
+  const sh = sheet_("sessions");
   const cols = HEADERS.sessions;
-  const row = safeRow(cols.map(c => (s[c] === undefined || s[c] === null ? "" : s[c])));
+  const row = safeRow_(cols.map(c => (s[c] === undefined || s[c] === null ? "" : s[c])));
   const last = sh.getLastRow();
   if (last > 1) {
     const sids = sh.getRange(2, 1, last - 1, 1).getValues();
@@ -113,7 +137,7 @@ function upsertSummary(s) {
 }
 
 /* -------------------------------- helpers ------------------------------- */
-function sheet(name) {
+function sheet_(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(name);
   if (!sh) {
@@ -125,7 +149,7 @@ function sheet(name) {
 }
 
 // Stop text that starts with = + - @ from being read as a formula.
-function safeRow(arr) {
+function safeRow_(arr) {
   return arr.map(v => (typeof v === "string" && /^[=+\-@]/.test(v) ? "'" + v : v));
 }
 
@@ -133,12 +157,11 @@ function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/** Run once from the editor to create the tabs and test permissions. */
-function setup() {
-  Object.keys(HEADERS).forEach(sheet);
-}
+/** Run once from the editor: creates the tabs and asks for permissions. */
+function setup() { Object.keys(HEADERS).forEach(sheet_); }
 
-/** Run from the editor to restart the block randomization (e.g. after piloting). */
-function resetBlocks() {
-  PropertiesService.getScriptProperties().deleteAllProperties();
-}
+/** Run after piloting: restarts block randomization and event file rotation. */
+function resetBlocks() { PropertiesService.getScriptProperties().deleteAllProperties(); }
+
+/** Run any time: logs current group counts to the execution log. */
+function showCounts() { Logger.log(JSON.stringify(groupCounts_())); }

@@ -147,22 +147,43 @@ window.PELAN = (function () {
     return rows;
   }
 
-  /* ------------------------- flashcard practice -------------------------- */
+  /* --------------------------- practice rounds --------------------------- */
+  // Three modes with identical credit (Model 1: passive / easy = low effort,
+  // active = effortful retrieval of weak words). Only taught phrases are used.
   const rnd = n => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; };
   const shuffle = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
-  // Pool grows with the lessons completed. Only taught phrases are used.
   function practicePool(lessonsDone) {
     let pool = nouns.map(n => [n.id, null]);
     if (lessonsDone >= 3) pool = pool.concat(TAUGHT_SIZE);
     if (lessonsDone >= 5) pool = pool.concat(TAUGHT_COLOR);
     return pool;
   }
-  function practice(lessonsDone, len) {
-    return shuffle(practicePool(lessonsDone)).slice(0, len).map(([n, a], i) => ({
-      id: `F-${i + 1}`, type: "flash", word: say(n, a), en: mean(n, a), pics: [W(n, a)]
-    }));
+  // miss: { "mira vela": 2, ... } counts of wrong answers so far
+  function practice(mode, lessonsDone, len, miss = {}) {
+    const pool = practicePool(lessonsDone);
+    const weakFirst = shuffle(pool).sort((x, y) => (miss[say(...y)] || 0) - (miss[say(...x)] || 0));
+    const picks = (mode === "active" ? weakFirst : shuffle(pool)).slice(0, len);
+    return picks.map(([n, a], i) => {
+      const word = say(n, a), en = mean(n, a), id = `P${mode[0].toUpperCase()}-${i + 1}`;
+      if (mode === "passive") {
+        const note = a ? `“${n}” ends in -${N[n].cls}, so the describing word ends in -${N[n].cls} too.` : `“${n}” is a thing-word that ends in -${N[n].cls}.`;
+        return { id, type: "explain", word, en, pics: [W(n, a)], note };
+      }
+      if (mode === "easy") {
+        const others = shuffle(pool.filter(p => say(...p) !== word)).slice(0, 2);
+        const options = shuffle([[n, a], ...others]).map(([m, b]) => ({ key: say(m, b), pic: W(m, b) }));
+        return { id, type: "pick_pic", prompt: `Which one is “${word}”?`, options, answer: word, weak: miss[word] || 0 };
+      }
+      if (!a) return { id, type: "type", prompt: `Type the Pelan word for “${en}”`, pics: [W(n)], answer: word, weak: miss[word] || 0 };
+      const wrongEnd = adjs[a].stem + (N[n].cls === "a" ? "o" : "a");
+      const other = shuffle(nouns.filter(x => x.id !== n))[0].id;
+      return { id, type: "build", en, bank: shuffle([n, adjs[a].stem + N[n].cls, wrongEnd, other]), answer: word, weak: miss[word] || 0 };
+    });
   }
 
-  return { name: "Pelan", nouns, adjs, lessons, glossary, practice, W, say, mean };
+  // Locked placeholders shown after Lesson 6 on the lesson map.
+  const comingSoon = ["Counting", "Weather words", "Little stories", "River songs"];
+
+  return { name: "Pelan", nouns, adjs, lessons, glossary, practice, comingSoon, W, say, mean };
 })();

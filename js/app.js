@@ -2,7 +2,7 @@
    PELAN STUDY APP
    eligibility → consent → nickname + study code → RANDOM ASSIGNMENT →
    onboarding + tour → lesson map → lessons 1–6 (each unlocks the next) →
-   after each lesson: next lesson / flashcards / break / finish →
+   after each lesson: next lesson / practice (watch, review, challenge) / break / finish →
    quit prompt (by version) → exit screen with study code + survey.
    ========================================================================= */
 (function () {
@@ -31,8 +31,21 @@
   const G = () => CFG.groups[S.group] || CFG.groups[1];
   const mascot = () => !!G().mascot;
   const gamified = () => !!G().gamified;
-  const msgSet = () => CFG.messages[G().framing === "plain" ? "plain" : (mascot() ? "ollie_" : "text_") + G().framing];
-  const fill = t => String(t).replace(/\{(streak|shells|next|n)\}/g, (_, k) => ({ streak: S.streak, shells: S.shells, next: nextLesson() || "", n: S.combo }[k]));
+  const msgSet = () => CFG.messages[G().framing];
+  const pressure = () => G().framing === "pressure";
+  const fill = t => String(t).replace(/\{(streak|shells|next|n|left)\}/g, (_, k) => ({ streak: S.streak, shells: S.shells, next: nextLesson() || "", n: S.combo, left: minutesLeft() }[k]));
+  // Pick the next message for a context. Variants rotate; ones that would show 0 are skipped.
+  function pick(ctx) {
+    const set = msgSet(), list = set[ctx];
+    if (!list) return null;
+    const out = (m, k) => ({ ...m, idx: k, text: m.text && fill(m.text), title: m.title && fill(m.title), body: m.body && fill(m.body) });
+    if (!Array.isArray(list)) return out(list, 0);
+    const ok = m => { const t = (m.text || "") + (m.title || "") + (m.body || ""); return !((/\{streak\}/.test(t) && !S.streak) || (/\{shells\}/.test(t) && !S.shells)); };
+    const i = (S.msgIdx[ctx] = (S.msgIdx[ctx] || 0) + 1) - 1;
+    const c = list.map((m, k) => ({ m, k })).filter(x => ok(x.m));
+    if (c.length) return out(c[i % c.length].m, c[i % c.length].k);
+    return set[ctx + "Early"] ? out(set[ctx + "Early"], "early") : out(list[0], 0);
+  }
   const nick = () => esc((S.nickname || "").trim()) || "friend";
   const lessonsDone = () => Object.values(S.lessons).filter(l => l.done).length;
   const nextLesson = () => { for (let n = 1; n <= NL; n++) if (!S.lessons[n].done) return n; return null; };
@@ -53,7 +66,9 @@
       v: 2, studyId: CFG.studyId, sid: uid(), code: makeCode(), nickname: "",
       group: null, condition: null, assignMode: null, createdAt: iso(), startedAt: null,
       shells: 0, shellsTotal: 0, streak: 0, combo: 0, maxCombo: 0, unlockedN: 1,
-      lessons, practice: { started: 0, rounds: 0, cards: 0 },
+      lessons, practice: { started: 0, rounds: 0, items: 0, passive: 0, easy: 0, active: 0 },
+      clockStart: null, warned: false, timeUp: false, miss: {},
+      goal: { active: false, shown: 0, met: 0 }, lastAct: null, nudges: 0, pops: 0,
       breaks: { n: 0, ms: 0 }, help: { opens: 0 }, coachSeen: {}, coachViews: 0,
       prompts: { shown: 0, continues: 0, firstAt: null, lastChoice: null },
       choices: [], msgIdx: {}, tourDone: false,
@@ -67,7 +82,11 @@
       sid: S.sid, code: S.code, study_id: S.studyId, group: S.group, condition: S.condition, assign_mode: S.assignMode,
       started_at: S.startedAt, ended_at: S.endedAt || "", end_reason: S.endReason || "",
       lessons_completed: lessonsDone(),
-      practice_rounds: S.practice.rounds, practice_cards: S.practice.cards,
+      practice_rounds: S.practice.rounds, practice_items: S.practice.items,
+      practice_passive: S.practice.passive, practice_easy: S.practice.easy, practice_active: S.practice.active,
+      goals_shown: S.goal.shown, goals_met: S.goal.met, last_activity: S.lastAct || "",
+      nudges_shown: S.nudges, ollie_pops: S.pops,
+      app_minutes: S.clockStart ? +(((S.endedAt ? Date.parse(S.endedAt) : Date.now()) - S.clockStart) / 60000).toFixed(1) : "",
       breaks_taken: S.breaks.n, break_seconds: Math.round(S.breaks.ms / 1000),
       help_opens: S.help.opens, coach_views: S.coachViews,
       prompts_shown: S.prompts.shown, prompt_continues: S.prompts.continues, final_choice: S.prompts.lastChoice || "",
@@ -87,6 +106,46 @@
     return s;
   }
   const sendSummary = () => { if (S && S.group) Log.summary(summary()); };
+
+  /* ---------------------------- session clock --------------------------- */
+  // Starts when Lesson 1 starts. Debug: &mins=2 shortens it for testing.
+  const SESSION_MIN = (DEBUG && +qs.get("mins")) || CFG.sessionMinutes;
+  const WARN_MIN = SESSION_MIN === CFG.sessionMinutes ? CFG.warnAtMinutes : SESSION_MIN * 0.75;
+  function minutesLeft() { return !S || !S.clockStart ? SESSION_MIN : Math.max(0, Math.ceil(SESSION_MIN - (Date.now() - S.clockStart) / 60000)); }
+  function startClock() { if (S.clockStart) return; S.clockStart = Date.now(); save(); Log.log("clock_start", { minutes: SESSION_MIN }); }
+  setInterval(() => {
+    if (!S || !S.clockStart || S.ended) return;
+    const m = (Date.now() - S.clockStart) / 60000;
+    if (!S.warned && m >= WARN_MIN) { S.warned = true; save(); timeWarning(); }
+    if (!S.timeUp && m >= SESSION_MIN) { S.timeUp = true; save(); timeUpScreen(); }
+  }, 1000);
+  function timeWarning() {
+    const m = pick("warn");
+    Log.log("time_warning", { msg: m.idx, kind: m.kind || "", text: m.text });
+    mascot() ? ollieSay(m.text, pressure() ? "worried" : "wave", pressure() ? "press" : "calm") : toast(`<span class="toast-ico">⏱</span><span>${esc(m.text)}</span>`, "warn");
+  }
+  function timeUpScreen() {
+    if (R) { Log.log("round_abandoned", { round: R.id, kind: R.kind, pos: R.pos, n_items: R.queue.length, why: "time_up" }); R = null; }
+    $modal.innerHTML = "";
+    const m = pick("timeUp");
+    Log.log("time_up", { text: m.title });
+    screen("time_up");
+    $app.innerHTML = `<div class="shell narrow"><div class="card center">
+      ${mascot() ? `<div class="celebrate">${Art.ollie(pressure() ? "sad" : "cheer")}</div>` : `<div class="brand" style="justify-content:center">${Art.logo}<span>Pelan</span></div>`}
+      <h1 class="h1">${esc(m.title)}</h1><p class="lead">${esc(m.body)}</p>
+      <button class="btn btn-primary" id="go">Continue</button></div></div>`;
+    $app.querySelector("#go").onclick = () => endSession("time_up", "clock");
+  }
+  // Ollie springs up from the bottom with a speech bubble (versions 3 and 5).
+  function ollieSay(text, mood = "cheer", cls = "", flip = false) {
+    S.pops++; save();
+    const el = document.createElement("div");
+    el.className = `ollie-pop ${cls} ${flip ? "flip" : ""}`;
+    el.setAttribute("role", "status");
+    el.innerHTML = `${Art.ollie(mood)}<div class="pop-bubble">${esc(text)}</div>`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3100);
+  }
 
   /* ------------------------------ rewards ------------------------------ */
   function addShells(k, why) {
@@ -250,7 +309,7 @@
     const how = `<ul class="howto">
       <li><span class="ico">📘</span><span><b>${NL} short lessons.</b> Finishing one unlocks the next.</span></li>
       ${gamified() ? `<li><span class="ico">🐚</span><span><b>Shells</b> for correct answers. Collect them to unlock new ${mascot() ? "tricks" : "animations"}.</span></li>
-      <li><span class="ico">🔥</span><span>Your <b>streak</b> counts the lessons you finish in a row.</span></li>` : ""}
+      <li><span class="ico">🔥</span><span>Your <b>streak</b> counts the lessons and practice rounds you finish in a row.</span></li>` : ""}
       <li><span class="ico">❓</span><span>Stuck? Tap <b>Help</b> in any lesson.</span></li>
       <li><span class="ico">🏁</span><span>Tap <b>Finish</b> whenever you're done. A short survey and quiz follow.</span></li></ul>`;
     return mascot() ? [
@@ -301,7 +360,7 @@
   function screenHome() {
     screen("home");
     const done = lessonsDone(), nxt = nextLesson();
-    const offsets = [0, -56, -20, 44, 56, 10];
+    const offsets = [0, -56, -20, 44, 56, 10, -40, -60, -10, 40];
     $app.innerHTML = `
       <div class="shell">
         ${header()}
@@ -316,18 +375,18 @@
               <span class="node-c">${st === "done" ? "✓" : st === "locked" ? "🔒" : L.n}</span>
               <span class="node-l"><b>Lesson ${L.n}</b><small>${esc(L.title)}</small></span></button>`;
           }).join("")}
-          ${mascot() ? `<div class="path-ollie">${Art.ollie(done ? "cheer" : "wave")}</div>` : ""}
+          ${P.comingSoon.map((t, k) => `<button class="node soon" disabled style="--x:${offsets[NL + k]}px" aria-label="Lesson ${NL + k + 1}: ${esc(t)} (coming soon)">
+              <span class="node-c">🔒</span><span class="node-l"><b>Lesson ${NL + k + 1}</b><small>${esc(t)} · coming soon</small></span></button>`).join("")}
+          ${mascot() ? `<div class="path-ollie">${done ? Art.trick("juggle") : Art.ollie("wave", { cls: "breathe" })}</div>` : ""}
         </div>
         ${done ? `<div class="side-acts">
-          <button class="act" id="home-practice"><span class="act-i">🃏</span><span><b>Extra practice</b><small>Flashcards with words you know</small></span></button>
-          <button class="act" id="home-break"><span class="act-i">${mascot() ? "🦦" : "🌊"}</span><span><b>Take a break</b><small>${mascot() ? "Watch Ollie do a trick" : "Watch a short animation"}</small></span></button>
+          <button class="act" id="home-more"><span class="act-i">🃏</span><span><b>Practice or take a break</b><small>Three practice modes, or ${mascot() ? "watch Ollie play" : "a short animation"}</small></span></button>
         </div>` : ""}
       </div>`;
     $app.querySelector("#btn-quit").onclick = () => attemptQuit("home");
     $app.querySelectorAll(".node.current").forEach(b => b.onclick = () => { S.choices.push("L" + b.dataset.n); save(); screenLessonIntro(+b.dataset.n); });
-    const hp = $app.querySelector("#home-practice"), hb = $app.querySelector("#home-break");
-    if (hp) hp.onclick = () => { S.choices.push("practice"); save(); startPractice("home"); };
-    if (hb) hb.onclick = () => { S.choices.push("break"); save(); screenBreak("home"); };
+    const hm = $app.querySelector("#home-more");
+    if (hm) hm.onclick = () => { Log.log("home_more"); screenChoice("home"); };
     if (!S.tourDone) setTimeout(runTour, 250);
   }
 
@@ -409,21 +468,22 @@
     build:     { label: "Build the phrase",  tone: "kelp",  how: "Tap the word tiles in the right order to build the phrase. Tap a tile again to take it back. Then press Check." },
     type:      { label: "Type it",           tone: "ink",   how: "Type the answer in Pelan with your keyboard. Then press Check or Enter." },
     judge:     { label: "Right or wrong?",   tone: "coral", how: "Read the Pelan phrase. Is it correct for the meaning shown? Tap Yes or No, then press Check." },
-    flash:     { label: "Flashcard",         tone: "river", how: "Try to remember what the word means, then tap Show answer. Tap “I knew it” or “Still learning”." }
+    explain:   { label: "Watch and read",    tone: "river", how: "Sit back and read along. Each card moves on by itself, or tap Next." }
   };
-  const COACH = ["pick_pic", "pick_text", "match", "build", "type", "judge", "flash"];
+  const COACH = ["pick_pic", "pick_text", "match", "build", "type", "judge"];
 
   function startLesson(n) {
     const L = P.lessons[n - 1], l = S.lessons[n];
     l.attempts++; l.startedAt = iso(); l.graded = 0; l.correct = 0;
-    R = { kind: "lesson", n, id: "L" + n + (l.attempts > 1 ? "-" + l.attempts : ""), queue: L.items.map(x => ({ ...x })), pos: 0, graded: 0, correct: 0, shells: 0, t0: Date.now() };
+    R = { kind: "lesson", n, id: "L" + n + (l.attempts > 1 ? "-" + l.attempts : ""), queue: L.items.map(x => ({ ...x })), pos: 0, graded: 0, correct: 0, shells: 0, t0: Date.now(), mid: Math.floor(L.items.length / 2), nudged: false };
+    startClock();
     save();
     Log.log("round_start", { round: R.id, kind: "lesson", lesson: n, n_items: R.queue.length });
     renderStep();
   }
 
   function renderStep() {
-    const it = R.queue[R.pos], T = TYPES[it.type];
+    const it = R.queue[R.pos], T = it.type === "explain" && mascot() ? { ...TYPES.explain, label: "Watch Ollie explain" } : TYPES[it.type];
     screen(R.kind === "lesson" ? "lesson_" + R.n : "practice");
     const total = R.queue.length, pct = (R.pos / total) * 100;
     $app.innerHTML = `
@@ -446,6 +506,7 @@
     $app.querySelector("#btn-help").onclick = () => openHelp(it);
     const view = RENDER[it.type](it);
     let tShown = now();
+    if (R.kind === "lesson" && !R.nudged && R.pos === R.mid) { R.nudged = true; setTimeout(nudge, 700); }
     const $foot = $app.querySelector("#foot");
 
     if (COACH.includes(it.type) && !S.coachSeen[it.type]) {
@@ -471,8 +532,9 @@
     if (lesson && !it.retry) { const l = S.lessons[R.n]; l.graded++; if (res.correct) l.correct++; }
     S.combo = res.correct ? S.combo + 1 : 0; S.maxCombo = Math.max(S.maxCombo, S.combo);
     Log.log("item_answer", { round: R.id, item: it.id, type: it.type, retry: !!it.retry, answer: res.answer, correct_answer: res.expected,
-      correct: res.correct, latency_ms: latency, combo: S.combo, ...(res.extra || {}) });
+      correct: res.correct, latency_ms: latency, combo: S.combo, ollie: mascot() ? (res.correct ? "happy" : pressure() ? "sad" : "encourage") : "", ...(res.extra || {}) });
     if (res.correct) { addShells(CFG.shellsPerCorrect, "correct"); R.shells += gamified() ? CFG.shellsPerCorrect : 0; }
+    if (!res.correct) { const k = it.big || it.answer; if (typeof k === "string" && /^[a-z ]+$/.test(k) && P.say) S.miss[k] = (S.miss[k] || 0) + 1; }
     if (lesson && !res.correct && !it.retry && it.type !== "match") R.queue.push({ ...it, id: it.id + "-retry", retry: true });
     save();
 
@@ -484,7 +546,8 @@
     const praise = ["Correct!", "Nice!", "You got it!", "Well done!"][rnd(4)];
     const shown = it.type === "judge" ? (it.answer ? "Yes, it's correct" : "No, it's wrong") : res.expected;
     $app.querySelector("#foot").innerHTML = `
-      <div class="feedback ${res.correct ? "ok" : "no"}" role="status">
+      <div class="feedback ${res.correct ? "ok" : "no"} ${mascot() ? "with-ollie" : ""}" role="status">
+        ${mascot() ? `<div class="fb-ollie">${Art.ollie(res.correct ? "happy" : pressure() ? "sad" : "encourage")}</div>` : ""}
         <div class="fb-title">${res.correct ? "✓ " + praise : "✗ Not quite"}</div>
         <div class="fb-body">${!res.correct ? `Correct answer: <b>${esc(shown)}</b>${it.explain ? "<br>" + esc(it.explain) : ""}${lesson && !it.retry && it.type !== "match" ? `<br><span class="muted">You'll see this one again at the end.</span>` : ""}`
                                             : (it.explain && it.type === "judge" ? esc(it.explain) : "")}</div>
@@ -500,11 +563,17 @@
 
   /* -------------------- combo pop-up and toasts --------------------- */
   function comboPop() {
-    const list = msgSet().combo, i = (S.msgIdx.combo = (S.msgIdx.combo || 0) + 1) - 1;
-    const text = fill(list[i % list.length]);
-    Log.log("combo_pop", { n: S.combo, msg: i % list.length, text });
-    if (mascot()) toast(`${Art.ollieHead("joy")}<span>${esc(text)}</span>`, "combo ollie-pop");
-    else toast(`<span class="toast-ico">${gamified() ? "🔥" : "✓"}</span><span>${esc(text)}</span>`, "combo");
+    const m = pick("combo");
+    Log.log("combo_pop", { n: S.combo, msg: m.idx, text: m.text, ollie: mascot() });
+    if (mascot()) ollieSay(m.text, "cheer", "", S.combo % 10 === 0);
+    else toast(`<span class="toast-ico">${gamified() ? "🔥" : "✓"}</span><span>${esc(m.text)}</span>`, "combo");
+  }
+  function nudge() {
+    const m = pick("nudge");
+    S.nudges++; save();
+    Log.log("nudge_shown", { round: R.id, pos: R.pos, msg: m.idx, kind: m.kind || "", text: m.text });
+    if (mascot()) ollieSay(m.text, pressure() ? "worried" : "wave", pressure() ? "press" : "calm");
+    else toast(`<span class="toast-ico">${pressure() ? "⚠️" : "➜"}</span><span>${esc(m.text)}</span>`, pressure() ? "press" : "");
   }
   function toast(html, cls = "") {
     const t = document.createElement("div");
@@ -540,7 +609,6 @@
       case "build": return `<div class="demo col"><div class="d-line">${chip("tavo")}${chip("velo")}</div><div class="d-bank">${chip("mira")}${chip("vela")}</div></div>`;
       case "type":  return `<div class="demo"><span class="d-input">mira<i></i></span></div>`;
       case "judge": return `<div class="demo">${chip("👍 Yes")}${chip("👎 No")}</div>`;
-      case "flash": return `<div class="demo">${chip("kelo", "card")}<div class="d-arrow">↻</div>${chip("shell", "card")}</div>`;
       default: return "";
     }
   }
@@ -586,19 +654,27 @@
     const l = S.lessons[r.n];
     l.done = true; l.endedAt = iso(); l.seconds = Math.round((Date.now() - r.t0) / 1000);
     addShells(CFG.shellsPerLesson, "lesson"); if (gamified()) r.shells += CFG.shellsPerLesson;
-    if (gamified()) S.streak = lessonsDone();
+    streakUp();
+    if (gamified()) { S.goal.active = true; S.goal.shown++; }        // goal: one more practice round
+    S.lastAct = "lesson_" + r.n;
     save();
     Log.log("round_complete", { round: r.id, kind: "lesson", lesson: r.n, graded: r.graded, correct: r.correct, first_try_correct: l.correct, first_try_graded: l.graded, seconds: l.seconds, shells: r.shells, streak: S.streak });
     sendSummary(); Log.flush();
     screenComplete(r);
   }
 
+  // Practice streak: lessons and practice rounds completed in a row (versions 2–5).
+  function streakUp() {
+    if (!gamified()) return false;
+    S.streak++;
+    return true;
+  }
   function screenComplete(r) {
     screen("lesson_complete_" + r.n);
     const l = S.lessons[r.n], acc = l.graded ? Math.round((l.correct / l.graded) * 100) : 100;
     const mins = Math.floor(l.seconds / 60), secs = String(l.seconds % 60).padStart(2, "0");
-    const hero = mascot() ? `<div class="celebrate ollie-dance">${Art.ollie("cheer")}</div>`
-               : gamified() ? `<div class="celebrate burst"><span>🐚</span><i></i><i></i><i></i><i></i><i></i><i></i></div>`
+    const hero = mascot() ? `<div class="celebrate gift">${Art.trick("gift")}</div><p class="gift-line">Here's a shell I found for you! <b>+${CFG.shellsPerLesson} 🐚</b></p>`
+               : gamified() ? `<div class="celebrate burst"><span>🐚</span><i></i><i></i><i></i><i></i><i></i><i></i></div><p class="gift-line">You found a shell! <b>+${CFG.shellsPerLesson} 🐚</b></p>`
                : `<div class="celebrate check"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27 l8 8 l15 -16"/></svg></div>`;
     $app.innerHTML = `
       <div class="shell narrow"><div class="card center">
@@ -614,6 +690,7 @@
         <button class="btn btn-primary" id="cont">Continue</button>
       </div></div>`;
     if (gamified()) confetti();
+    if (gamified()) Log.log("gift_shown", { lesson: r.n, ollie: mascot() });
     $app.querySelector("#cont").onclick = () => screenChoice("after_lesson");
   }
   function confetti() {
@@ -630,65 +707,86 @@
   }
 
   /* ---------------------- choice point (IRB Step 3) ---------------------- */
-  function screenChoice(context) {
+  const MODES = () => [
+    { id: "passive", icon: mascot() ? "🦦" : "📺", title: mascot() ? "Watch Ollie explain" : "Watch and read", sub: "Sit back and watch the words" },
+    { id: "easy",    icon: "👀", title: "Quick review",          sub: "Tap the matching pictures" },
+    { id: "active",  icon: "💪", title: "Weak words challenge",  sub: "Type and build the words you missed" }
+  ];
+  function screenChoice(context, goalJustMet) {
     screen("choice");
     const nxt = nextLesson(), L = nxt ? P.lessons[nxt - 1] : null, t0 = now();
-    const key = nxt ? "between" : "allDone", list = msgSet()[key];
-    const i = (S.msgIdx[key] = (S.msgIdx[key] || 0) + 1) - 1;
-    const text = fill(list[i % list.length]);
-    Log.log("reminder_shown", { context, kind: key, msg: i % list.length, text });
+    const key = nxt ? "between" : "allDone", m = pick(key);
+    Log.log("reminder_shown", { context, kind: key, msg: m.idx, framing: m.kind || "", text: m.text });
+    let goalHtml = "";
+    if (gamified() && (S.goal.active || goalJustMet)) {
+      const g = pick(S.goal.active ? "goal" : "goalMet");
+      Log.log(S.goal.active ? "goal_shown" : "goal_met_shown", { context, text: g.text, streak: S.streak });
+      goalHtml = `<div class="goal ${S.goal.active ? "" : "met"}"><span class="goal-i">${S.goal.active ? "🎯" : "✅"}</span><span>${esc(g.text)}</span></div>`;
+    }
+    const credit = gamified() ? `+${CFG.shellsPerPractice} 🐚 +1 🔥` : "≈ 1 min";
     $app.innerHTML = `
       <div class="shell narrow">
         ${header()}
-        ${speaker(esc(text), G().framing === "pressure" ? "worried" : "talk", "reminder " + (G().framing === "pressure" ? "pressure" : ""))}
+        ${speaker(esc(m.text), pressure() ? "worried" : "talk", "reminder " + (pressure() ? "pressure" : ""))}
+        ${goalHtml}
         <h2 class="h2">What would you like to do next?</h2>
         <div class="choices">
           ${L ? `<button class="act primary" data-c="next"><span class="act-i">📘</span><span><b>Start Lesson ${nxt}</b><small>${esc(L.title)}</small></span></button>` : ""}
-          <button class="act" data-c="practice"><span class="act-i">🃏</span><span><b>Extra practice</b><small>Flashcards with words you know</small></span></button>
-          <button class="act" data-c="break"><span class="act-i">${mascot() ? "🦦" : "🌊"}</span><span><b>Take a break</b><small>${mascot() ? "Watch Ollie do a trick" : "Watch a short animation"}</small></span></button>
+        </div>
+        <div class="sub-h">Practice${gamified() ? ": every option earns the same" : ""}</div>
+        <div class="modes">${MODES().map(md => `<button class="mode" data-c="practice" data-mode="${md.id}"><span class="mode-i">${md.icon}</span><b>${md.title}</b><small>${md.sub}</small><span class="credit">${credit}</span></button>`).join("")}</div>
+        <div class="choices" style="margin-top:12px">
+          <button class="act" data-c="break"><span class="act-i">${mascot() ? "🦦" : "🌊"}</span><span><b>Take a break</b><small>${mascot() ? "Watch Ollie play" : "Watch a short animation"}</small></span></button>
           <button class="act quiet" data-c="finish"><span class="act-i">🏁</span><span><b>Finish session</b><small>Go to the survey and quiz</small></span></button>
         </div>
         <button class="btn btn-quiet" id="to-map">Lesson map</button>
       </div>`;
     $app.querySelector("#btn-quit").onclick = () => attemptQuit("choice");
     $app.querySelector("#to-map").onclick = () => { Log.log("choice_made", { context, choice: "map", decide_ms: ms(t0) }); screenHome(); };
-    $app.querySelectorAll(".choices .act").forEach(b => b.onclick = () => {
-      const c = b.dataset.c;
-      Log.log("choice_made", { context, choice: c, decide_ms: ms(t0), lessons_completed: lessonsDone() });
-      if (c !== "finish") { S.choices.push(c === "next" ? "L" + nxt : c); save(); }
+    $app.querySelectorAll("[data-c]").forEach(b => b.onclick = () => {
+      const c = b.dataset.c, mode = b.dataset.mode || "";
+      Log.log("choice_made", { context, choice: c, mode, decide_ms: ms(t0), goal_active: S.goal.active, lessons_completed: lessonsDone() });
+      if (c !== "finish") { S.choices.push(c === "next" ? "L" + nxt : c === "practice" ? "P-" + mode : c); save(); }
       if (c === "next") screenLessonIntro(nxt);
-      else if (c === "practice") startPractice("choice");
-      else if (c === "break") screenBreak("choice");
+      else if (c === "practice") startPractice(mode, context);
+      else if (c === "break") screenBreak(context);
       else attemptQuit("choice");
     });
   }
 
-  /* --------------------------- flashcards ---------------------------- */
-  function startPractice(from) {
-    const items = P.practice(lessonsDone(), CFG.practiceLength);
+  /* ----------------------- practice (three modes) ----------------------- */
+  function startPractice(mode, from) {
+    const items = P.practice(mode, lessonsDone(), CFG.practiceLength, S.miss);
     S.practice.started++;
-    R = { kind: "practice", id: "P" + S.practice.started, queue: items, pos: 0, graded: 0, correct: 0, shells: 0, t0: Date.now(), knew: 0 };
+    R = { kind: "practice", mode, id: "P" + S.practice.started + "-" + mode, queue: items, pos: 0, graded: 0, correct: 0, shells: 0, t0: Date.now(), watched: 0 };
     save();
-    Log.log("round_start", { round: R.id, kind: "practice", from, n_items: items.length, items: items.map(x => x.word) });
+    Log.log("round_start", { round: R.id, kind: "practice", mode, from, goal_active: S.goal.active, n_items: items.length, items: items.map(x => x.word || x.answer) });
     renderStep();
   }
   function finishPractice() {
     const r = R; R = null;
-    S.practice.rounds++; S.practice.cards += r.queue.length;
+    S.practice.rounds++; S.practice.items += r.queue.length; S.practice[r.mode]++;
     addShells(CFG.shellsPerPractice, "practice"); if (gamified()) r.shells += CFG.shellsPerPractice;
+    streakUp();
+    let goalMet = false;
+    if (S.goal.active) { S.goal.active = false; S.goal.met++; goalMet = true; }
+    S.lastAct = "practice_" + r.mode;
     save();
-    Log.log("round_complete", { round: r.id, kind: "practice", knew: r.knew, n: r.queue.length, seconds: Math.round((Date.now() - r.t0) / 1000), shells: r.shells });
+    Log.log("round_complete", { round: r.id, kind: "practice", mode: r.mode, graded: r.graded, correct: r.correct, n: r.queue.length,
+      seconds: Math.round((Date.now() - r.t0) / 1000), shells: r.shells, streak: S.streak, goal_met: goalMet });
+    if (goalMet) Log.log("goal_met", { mode: r.mode, streak: S.streak });
     sendSummary(); Log.flush();
     if (S.practice.rounds >= CFG.maxPracticeRounds) return endSession("max_rounds", "practice");
     screen("practice_complete");
+    const line = r.mode === "passive" ? `You watched ${r.queue.length} words.` : `You got ${r.correct} of ${r.graded} right.`;
     $app.innerHTML = `
       <div class="shell narrow"><div class="card center">
         ${mascot() ? `<div class="celebrate">${Art.ollie("shell")}</div>` : ""}
         <h1 class="h1">Practice round done</h1>
-        <p class="lead">You knew ${r.knew} of ${r.queue.length} cards.${gamified() ? ` +${r.shells} 🐚` : ""}</p>
+        <p class="lead">${line}${gamified() ? ` +${r.shells} 🐚 · 🔥 ${S.streak}` : ""}</p>
         <button class="btn btn-primary" id="cont">Continue</button>
       </div></div>`;
-    $app.querySelector("#cont").onclick = () => screenChoice("after_practice");
+    $app.querySelector("#cont").onclick = () => screenChoice("after_practice", goalMet);
   }
 
   /* ------------------------------ break ------------------------------ */
@@ -696,7 +794,7 @@
     screen("break");
     const items = unlockedItems(), pool = items.length > 1 ? items.filter(x => x.id !== prevId) : items;
     const item = pool[rnd(pool.length)], all = breakItems(), t0 = now();
-    S.breaks.n++; save();
+    S.breaks.n++; S.lastAct = "break"; save();
     Log.log("break_start", { item: item.id, from, unlocked: items.length });
     $app.innerHTML = `
       <div class="shell narrow">
@@ -838,24 +936,25 @@
       });
       return v;
     },
-    flash(it) {
+    // Passive mode: cards play one by one (Ollie presents them in versions 3 and 5).
+    explain(it) {
+      const secs = CFG.explainSeconds, t0 = now();
       body().innerHTML = `
-        <div class="q-title">What does this mean?</div>
-        <div class="flash" id="card"><div class="flash-in">
-          <div class="flash-f"><div class="bigword">${esc(it.word)}</div></div>
-          <div class="flash-b">${it.pics.map(p => Art.icon(p)).join("")}<div class="bigword sm">${esc(it.word)}</div><div class="gloss">${esc(it.en)}</div></div>
-        </div></div>`;
-      const $f = $app.querySelector("#foot"), t0 = now();
-      $f.innerHTML = `<button class="btn btn-primary" id="flip">Show answer</button>`;
-      $f.querySelector("#flip").onclick = () => {
-        const tf = ms(t0), t1 = now();
-        body().querySelector("#card").classList.add("flipped");
-        Log.log("flash_flip", { round: R.id, item: it.id, word: it.word, front_ms: tf });
-        $f.innerHTML = `<div class="btn-pair"><button class="btn btn-quiet" id="learn">Still learning</button><button class="btn btn-ok" id="knew">I knew it</button></div>`;
-        const rate = knew => { if (knew) R.knew++; Log.log("flash_rate", { round: R.id, item: it.id, word: it.word, knew, back_ms: ms(t1) }); advance(); };
-        $f.querySelector("#knew").onclick = () => rate(true);
-        $f.querySelector("#learn").onclick = () => rate(false);
-      };
+        <div class="explain-card">
+          <div class="intro-pics">${it.pics.map(p => Art.icon(p)).join("")}</div>
+          <div class="bigword">${esc(it.word)}</div>
+          <div class="gloss">${esc(it.en)}</div>
+          ${mascot() ? "" : `<div class="explain-note">${esc(it.note)}</div>`}
+          <div class="autoplay" style="--d:${secs}s"><i></i></div>
+        </div>
+        ${mascot() ? `<div class="explain-host">${Art.ollie("talk", { cls: "breathe" })}<div class="bubble">${esc(it.note)}</div></div>` : ""}`;
+      const $f = $app.querySelector("#foot");
+      $f.innerHTML = `<button class="btn btn-quiet" id="nextcard">Next</button>`;
+      let done = false;
+      const go = how => { if (done) return; done = true; clearTimeout(timer); R.watched++;
+        Log.log("explain_card", { round: R.id, item: it.id, word: it.word, dwell_ms: ms(t0), how }); advance(); };
+      const timer = setTimeout(() => go("auto"), secs * 1000);
+      $f.querySelector("#nextcard").onclick = () => go("tap");
       return { graded: false, custom: true };
     }
   };
@@ -874,22 +973,18 @@
   /* --------------------- quit prompt (the reminders) --------------------- */
   function attemptQuit(context) {
     if ($modal.querySelector(".prompt-card")) return;
-    const set = msgSet();
-    const ok = q => !((/\{streak\}/.test(q.title + (q.body || "")) && !S.streak) || (/\{shells\}/.test(q.title + (q.body || "")) && !S.shells));
-    const idx = (S.msgIdx.quit = (S.msgIdx.quit || 0) + 1) - 1;
-    const cands = set.quit.map((q, k) => ({ q, k })).filter(x => ok(x.q));
-    const pickd = cands.length ? cands[idx % cands.length] : { q: set.quitEarly || { title: set.quit[0].title, art: set.quit[0].art }, k: "early" };
-    const q = pickd.q, title = fill(q.title), bodyTxt = q.body ? fill(q.body) : "";
+    const q = pick("quit"), title = q.title, bodyTxt = q.body || "";
+    const pickd = { k: q.idx };
     S.prompts.shown++; S.prompts.firstAt = S.prompts.firstAt || iso(); save();
     Log.log("prompt_shown", { context, n: S.prompts.shown, msg: pickd.k, title, body: bodyTxt, shells: S.shells, streak: S.streak,
-      round: R ? R.id : null, round_pos: R ? R.pos : null, lessons_completed: lessonsDone() });
+      kind: q.kind || "", ollie: mascot() ? (q.sad || "talk") : "", round: R ? R.id : null, round_pos: R ? R.pos : null, lessons_completed: lessonsDone() });
     sendSummary();
     const t0 = now();
     const ov = document.createElement("div");
     ov.className = "overlay";
     ov.innerHTML = `
       <div class="prompt-card ${mascot() ? "has-ollie" : ""} ${G().framing}" role="dialog" aria-modal="true" aria-labelledby="p-title">
-        ${mascot() ? Art.ollie(q.art || "talk") : ""}
+        ${!mascot() ? "" : !pressure() ? Art.ollie("talk") : q.sad === "drift" ? Art.trick("drift") : Art.ollie(q.sad || "sad")}
         <h2 class="p-title" id="p-title">${esc(title)}</h2>
         ${bodyTxt ? `<p class="p-body">${esc(bodyTxt)}</p>` : ""}
         <button class="btn btn-primary" id="stay">${esc(CFG.buttons.stay)}</button>

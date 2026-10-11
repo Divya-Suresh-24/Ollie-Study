@@ -6,7 +6,9 @@
    ========================================================================= */
 window.StudyLog = (function () {
   const CFG = window.STUDY_CONFIG;
-  const url = (CFG.appsScriptUrl || "").trim();
+  // Preview links (#preview, #v1–#v5) never send data.
+  const PREVIEW = !!window.PELAN_PREVIEW_DEFAULT || /^#(preview|v[1-5])$/i.test(location.hash);
+  const url = PREVIEW ? "" : (CFG.appsScriptUrl || "").trim();
   const t0 = performance.now();
   let ctx = {};
   let queue = [], backup = [], lastSummary = null, flushing = false;

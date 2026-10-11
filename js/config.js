@@ -25,6 +25,11 @@ window.STUDY_CONFIG = {
   // &reset=1 starts over. SET TO false BEFORE LAUNCH.
   allowDebug: true,
 
+  // Preview links for the team: …/#preview shows a version picker,
+  // …/#v1 to …/#v5 open one version directly. Nothing is saved or sent.
+  // Safe to leave on at launch; set false to switch them off.
+  allowPreview: true,
+
   /* ---- Eligibility and consent (IRB Step 1) ----------------------------- */
   eligibility: [
     { id: "age18",    q: "Are you 18 or older?",                               pass: "yes" },

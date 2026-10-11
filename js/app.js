@@ -26,7 +26,9 @@
   const rnd = n => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; };
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "s-" + Date.now().toString(36) + "-" + rnd(1e9).toString(36));
   const norm = s => String(s).toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
-  const save = () => { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (_) {} };
+  const hashPV = () => { const m = (location.hash || "").match(/^#(preview|v([1-5]))$/i); return m ? (m[2] ? +m[2] : "hub") : (window.PELAN_PREVIEW_DEFAULT ? "hub" : null); };
+  const PREVIEW = CFG.allowPreview !== false && !!hashPV();
+  const save = () => { if (PREVIEW) return; try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (_) {} };
   const load = () => { try { return JSON.parse(localStorage.getItem(STORE)); } catch (_) { return null; } };
   const G = () => CFG.groups[S.group] || CFG.groups[1];
   const mascot = () => !!G().mascot;
@@ -167,6 +169,7 @@
 
   /* ------------------------------- boot -------------------------------- */
   function boot() {
+    if (PREVIEW) return startPreview(hashPV());
     if (DEBUG && qs.get("reset") === "1") {
       localStorage.removeItem(STORE);
       const q = new URLSearchParams(location.search); q.delete("reset");
@@ -296,7 +299,8 @@
 
   async function startSession() {
     const a = await assignGroup();
-    S.group = a.group; S.assignMode = a.mode; S.condition = G().key; S.startedAt = iso();
+    S.group = a.group; S.assignMode = PREVIEW ? "preview" : a.mode; S.condition = G().key; S.startedAt = iso();
+    if (PREVIEW) previewBar();
     save(); ctx(); applyTheme();
     Log.log("session_start", { group: S.group, condition: S.condition, assign_mode: S.assignMode });
     sendSummary(); Log.flush();
@@ -1021,6 +1025,7 @@
   }
   function screenEnd() {
     screen("end");
+    if (PREVIEW) return previewEnd();
     const link = surveyLink(), capped = S.endReason === "max_rounds";
     $app.innerHTML = `
       <div class="shell ${link && CFG.embedSurvey ? "wide" : "narrow"}"><div class="card">
@@ -1064,6 +1069,109 @@
       <h1 class="h1">All done. Thank you!</h1><p class="lead">You can close this tab now.</p></div></div>`;
   }
 
+  /* ------------------------------ preview ------------------------------ */
+  // For the research team: view any version without recording anything.
+  const VERSIONS = [
+    { g: 1, name: "Plain control",       ollie: false, game: false, words: "Plain",    note: "Just the facts. No mascot, no streak or shells, plain wording." },
+    { g: 2, name: "Neutral",             ollie: false, game: true,  words: "Neutral",  note: "Streak, shells and goals with friendly, neutral wording." },
+    { g: 3, name: "Ollie + neutral",     ollie: true,  game: true,  words: "Neutral",  note: "Same words as Version 2, delivered with Ollie." },
+    { g: 4, name: "Pressure",            ollie: false, game: true,  words: "Guilt + loss", note: "Guilt and loss reminders as plain text." },
+    { g: 5, name: "Ollie + pressure",    ollie: true,  game: true,  words: "Guilt + loss", note: "Same words as Version 4, with sad and worried Ollie." }
+  ];
+  function resetView() {
+    R = null; $modal.innerHTML = ""; $toast.innerHTML = "";
+    document.querySelectorAll(".tour-layer, .ollie-pop, .confetti, .preview-bar").forEach(e => e.remove());
+  }
+  function startPreview(which) {
+    resetView();
+    if (which === "hub") return previewHub();
+    S = newState();
+    S.nickname = "Preview"; S.code = "PREVIEW"; S.group = which; S.assignMode = "preview";
+    S.condition = G().key; S.startedAt = iso();
+    ctx(); applyTheme(); previewBar();
+    screenIntro(0);
+  }
+  function go(which) {
+    const h = which === "hub" ? "#preview" : "#v" + which;
+    if (location.hash !== h) location.hash = h; else startPreview(which);
+  }
+  addEventListener("hashchange", () => { if (PREVIEW && hashPV()) startPreview(hashPV()); });
+
+  function previewHub() {
+    S = null; document.body.dataset.mascot = "0";
+    screen("preview_hub");
+    const yes = t => `<span class="pv-chip on">${t}</span>`, no = t => `<span class="pv-chip">${t}</span>`;
+    $app.innerHTML = `
+      <div class="shell pv-shell">
+        <div class="pv-head">
+          <div class="brand">${Art.logo}<span>Pelan</span></div>
+          <h1 class="h1">Study versions</h1>
+          <p class="lead">Open any of the five versions participants can be assigned to. Previews start after sign-up, nothing is recorded, and no survey responses are created.</p>
+        </div>
+        <div class="pv-grid">
+          ${VERSIONS.map(v => `
+            <button class="pv-card ${v.ollie ? "has-ollie" : ""}" data-g="${v.g}" aria-label="Open Version ${v.g}: ${esc(v.name)}">
+              <span class="pv-art">${v.ollie ? Art.ollie(v.words === "Neutral" ? "wave" : "sad") : `<span class="pv-num">${v.g}</span>`}</span>
+              <span class="pv-body">
+                <span class="pv-k">Version ${v.g}</span>
+                <b class="pv-name">${esc(v.name)}</b>
+                <span class="pv-note">${esc(v.note)}</span>
+                <span class="pv-chips">${v.ollie ? yes("Ollie") : no("No Ollie")}${v.game ? yes("Streak + shells") : no("No streak")}${v.words === "Guilt + loss" ? `<span class="pv-chip warn">${v.words}</span>` : no(v.words + " wording")}</span>
+              </span>
+              <span class="pv-open">Open →</span>
+            </button>`).join("")}
+        </div>
+        <div class="pv-foot">
+          <button class="btn btn-quiet" id="pv-signup">See the sign-up screens (random version)</button>
+          <p class="hint">Tip: add <b>#v1</b> to <b>#v5</b> to the end of the link to open one version directly.</p>
+        </div>
+      </div>`;
+    $app.querySelectorAll(".pv-card").forEach(b => b.onclick = () => go(+b.dataset.g));
+    $app.querySelector("#pv-signup").onclick = () => {
+      S = newState(); S.nickname = ""; ctx();
+      screenEligibility();
+    };
+  }
+  function previewBar() {
+    const v = VERSIONS[S.group - 1];
+    const d = document.createElement("div");
+    d.className = "preview-bar";
+    d.innerHTML = `
+      <span class="pv-tag">Preview</span>
+      <label class="pv-switch"><span class="sr">Version</span>
+        <select id="pv-sel" aria-label="Switch version">${VERSIONS.map(x => `<option value="${x.g}" ${x.g === S.group ? "selected" : ""}>V${x.g} · ${esc(x.name)}</option>`).join("")}</select></label>
+      <button id="pv-skip" title="Finish the current lesson instantly">Skip lesson</button>
+      <button id="pv-quit" title="Show this version's quit message">Quit message</button>
+      <button id="pv-all">All versions</button>`;
+    document.body.appendChild(d);
+    d.querySelector("#pv-sel").onchange = e => go(+e.target.value);
+    d.querySelector("#pv-skip").onclick = () => {
+      if (!S || S.ended) return;
+      if (!R) { const n = nextLesson(); if (!n) return; startLesson(n); }
+      R.pos = R.queue.length - 1; advance();
+    };
+    d.querySelector("#pv-quit").onclick = () => { if (S && !S.ended) attemptQuit("preview"); };
+    d.querySelector("#pv-all").onclick = () => go("hub");
+    void v;
+  }
+  function previewEnd() {
+    screen("end");
+    const link = surveyLink();
+    $app.innerHTML = `
+      <div class="shell narrow"><div class="card">
+        <div class="brand">${Art.logo}<span>Pelan</span></div>
+        <h1 class="h1">End of the app</h1>
+        <p class="lead">Participants see their study code here, with the Qualtrics survey and quiz embedded below it. The survey isn't loaded in a preview so no test responses are created.</p>
+        ${link ? `<p class="hint">To look at the survey itself, <a href="${esc(link.split("?")[0])}" target="_blank" rel="noopener">open it in a new tab</a> (this creates a response in Qualtrics).</p>` : ""}
+        <div class="btn-row">
+          <button class="btn btn-primary" id="pv-again">Try another version</button>
+          <button class="btn btn-quiet" id="pv-same">Restart this version</button>
+        </div>
+      </div></div>`;
+    $app.querySelector("#pv-again").onclick = () => go("hub");
+    $app.querySelector("#pv-same").onclick = () => startPreview(S.group);
+  }
+
   /* ------------------------------- debug ------------------------------- */
   function debugBar() {
     if (!DEBUG || document.querySelector(".debug-bar")) return;
@@ -1080,6 +1188,6 @@
     d.querySelector("#dbg-r").onclick = () => { localStorage.removeItem(STORE); location.reload(); };
   }
 
-  if (DEBUG) window.__pelan = { round: () => R, state: () => S };
+  if (DEBUG || PREVIEW) window.__pelan = { round: () => R, state: () => S };
   boot();
 })();

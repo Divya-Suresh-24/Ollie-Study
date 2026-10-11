@@ -73,6 +73,12 @@ Open a pull request into `main` (or merge directly). Pages republishes about a m
 
 ---
 
+## Previewing and sharing the five versions
+- `…/Ollie-Study/#preview` opens a picker with all five versions.
+- `…/Ollie-Study/#v1` to `#v5` open one version directly.
+- A bar at the bottom switches versions, skips a lesson, and shows the quit message.
+- Previews save nothing, send nothing to the Google Sheet, and don't load the Qualtrics survey. Turn them off with `allowPreview: false` in `config.js`.
+
 ## Testing
 **Version checklist.** `tests/check_versions.py` plays through every version in a headless browser and checks about 20 things each (Ollie present or absent, wording set, sad Ollie, nudges, pops, goal, practice modes, quit picture, 30-minute stop, survey hand-off). Run it after any change:
 ```bash

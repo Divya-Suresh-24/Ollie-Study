@@ -10,8 +10,8 @@
  *   events        every logged action (one row per event)
  *   sessions      one summary row per participant, kept up to date
  *
- * Assignment uses PERMUTED BLOCKS of 5: every 5 real participants receive
- * versions 1–5 in a fresh random order, so group sizes never differ by
+ * Assignment uses PERMUTED BLOCKS of 4: every 4 real participants receive
+ * versions 1–4 in a fresh random order, so group sizes never differ by
  * more than one. Debug sessions (?debug=1) never use up a block.
  *
  * Apps Script never sees participants' IP addresses, and the app sends no
@@ -22,22 +22,26 @@
  * "pelan-events-part-N" in the same Drive. Combine the parts for analysis.
  */
 
-const CONDITIONS = { 1: "v1_plain", 2: "v2_neutral", 3: "v3_ollie_neutral", 4: "v4_pressure", 5: "v5_ollie_pressure" };
-const BLOCK = [1, 2, 3, 4, 5];
+const CONDITIONS = { 1: "v1_text_neutral", 2: "v2_ollie_neutral", 3: "v3_text_guilt", 4: "v4_ollie_guilt" };
+const BLOCK = [1, 2, 3, 4];
 const EVENTS_PER_FILE = 300000;
 
 const HEADERS = {
   participants: ["server_ts", "study_id", "code", "sid", "group", "condition", "assign_mode", "user_agent"],
   events: ["server_ts", "client_ts", "t_ms", "study_id", "sid", "code", "group", "condition", "assign_mode", "screen", "event", "data"],
-  sessions: ["sid", "code", "study_id", "group", "condition", "assign_mode", "started_at", "ended_at", "end_reason",
-    "lessons_completed", "l1_acc", "l2_acc", "l3_acc", "l4_acc", "l5_acc", "l6_acc",
-    "l1_sec", "l2_sec", "l3_sec", "l4_sec", "l5_sec", "l6_sec",
-    "practice_rounds", "practice_items", "practice_passive", "practice_easy", "practice_active",
-    "goals_shown", "goals_met", "last_activity", "nudges_shown", "ollie_pops", "app_minutes", "breaks_taken", "break_seconds", "help_opens", "coach_views",
+  sessions: [
+    "sid", "code", "study_id", "group", "condition", "assign_mode", "mascot", "framing", "started_at", "ended_at",
+    "end_reason", "lessons_completed", "lessons_quick", "lessons_full", "lesson_redos", "l1_acc", "l2_acc", "l3_acc",
+    "l4_acc", "l5_acc", "l6_acc", "l7_acc", "l8_acc", "l9_acc", "l10_acc", "l1_sec", "l2_sec", "l3_sec", "l4_sec",
+    "l5_sec", "l6_sec", "l7_sec", "l8_sec", "l9_sec", "l10_sec", "l1_len", "l2_len", "l3_len", "l4_len", "l5_len",
+    "l6_len", "l7_len", "l8_len", "l9_len", "l10_len", "practice_rounds", "practice_items", "practice_passive",
+    "practice_easy", "practice_active", "goals_shown", "goals_met", "last_activity", "leave_prompts", "leave_stayed",
+    "leaves_early", "returns", "nudges_shown", "ollie_pops", "max_stage", "app_minutes", "finish_unlocked_at",
+    "minutes_after_unlock", "finish_locked_clicks", "breaks_taken", "break_seconds", "help_opens", "coach_views",
     "prompts_shown", "prompt_continues", "final_choice", "first_prompt_at", "seconds_after_first_prompt", "choices",
-    "shells", "shells_total", "streak", "max_combo",
-    "session_seconds", "active_seconds", "idle_seconds", "hidden_seconds",
-    "survey_opened", "survey_done", "user_agent", "updated_at"]
+    "shells", "shells_total", "streak", "max_streak", "max_combo", "session_seconds", "active_seconds",
+    "idle_seconds", "hidden_seconds", "survey_opened", "survey_done", "user_agent", "updated_at"
+  ]
 };
 
 function doGet() {
@@ -88,7 +92,7 @@ function nextFromBlock_(studyId) {
 /** Assignments per group (excluding debug). Also shown by doGet. */
 function groupCounts_() {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("participants");
-  const out = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  const out = { 1: 0, 2: 0, 3: 0, 4: 0 };
   if (!sh || sh.getLastRow() < 2) return out;
   sh.getRange(2, 5, sh.getLastRow() - 1, 3).getValues().forEach(r => { if (r[2] !== "debug" && out[r[0]] !== undefined) out[r[0]]++; });
   return out;
@@ -141,6 +145,15 @@ function upsertSummary_(s) {
 function sheet_(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(name);
+  // If the columns changed (new app version), keep the old tab under a new
+  // name and start a fresh one, so old and new rows never mix.
+  if (sh && sh.getLastColumn() > 0) {
+    const have = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].join("|");
+    if (have !== HEADERS[name].join("|")) {
+      sh.setName(name + "_old_" + Utilities.formatDate(new Date(), "UTC", "yyyyMMdd_HHmm"));
+      sh = null;
+    }
+  }
   if (!sh) {
     sh = ss.insertSheet(name);
     sh.getRange(1, 1, 1, HEADERS[name].length).setValues([HEADERS[name]]).setFontWeight("bold");

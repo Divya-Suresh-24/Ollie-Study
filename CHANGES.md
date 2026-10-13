@@ -1,3 +1,42 @@
+# What changed in v4
+
+Aligned with the theory write-up (Sections 2–4) and the October meeting.
+
+## Design: 2 × 2, no plain control
+- Four versions: Ollie or not × neutral or guilt wording. The streak, shells, goal, lessons, practice modes, help and timing are identical in all four.
+- Guilt words are the same with and without Ollie; only the speaker changes ("I found this shell for you!" vs "We found this shell for you!").
+- Mostly relational guilt with an occasional loss line (the loss route is estimated, not hypothesized).
+
+## Ollie follows the construct's three properties
+- **Sequenced:** no guilt until Lesson 1 is done; guilt lines unlock by stage (0, 1, 2) as the shared history grows.
+- **Contingent:** happy and cheering on correct answers and combos, encouraging (never sad) on mistakes, sad when you try to leave (guilt versions), relieved and hugging a heart when you come back.
+- **Cumulative:** lines refer to shared history ("After 4 lessons together…", "our streak").
+- Gift after each lesson: "You earned a shell" (neutral) vs "I/We found this shell for you" (guilt).
+
+## Flow
+- Leaving a lesson or practice round goes back home after the version's prompt. Only Finish ends the session.
+- Finish unlocks at 20 minutes; the app ends at 35. Minutes stayed after the unlock measure continued use.
+- Leaving a round early resets the streak in every version (stated in onboarding), so loss lines are truthful.
+- Home is now the hub: lesson map plus Ollie or a message panel, the goal, practice modes and a break.
+
+## Appeasement can now be measured three ways
+- Shortest lesson: every lesson has a quick and a full version with equal credit.
+- Passive mode: watch vs review vs weak-words practice, equal credit.
+- Stopping once the streak is safe: goal met → what happens next.
+
+## Content
+- 10 lessons (4 new sky words: sola, vira, nubo, lido) plus 2 "coming soon". Finished lessons can be replayed.
+
+## Look
+- Laptop layout: wide two-column home and lessons, bigger tiles and text, a full-width Check/feedback bar at the bottom. Stacks on phones.
+- Cuter Ollie: rounder chibi body, bigger sparkly eyes, pink ears, a flat paddle tail that lies on the ground. 14 moods (cheer, star eyes, hearts, clapping, hug, encouraging, sad, worried and more) with jump, squish, nod, sway and shiver motions.
+- New tricks: twirl; new neutral animation: starlight.
+
+## Backend
+- Apps Script: 4 groups, new columns. Old tabs are kept automatically when columns change. Redeploy as a new version and run `resetBlocks`.
+
+---
+
 # What changed in v3
 
 ## Design follows Models 1 and 5

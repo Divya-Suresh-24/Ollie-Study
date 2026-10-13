@@ -3,7 +3,7 @@
    Everything you are likely to change lives in this file.
    ========================================================================= */
 window.STUDY_CONFIG = {
-  studyId: "pelan-v2-pilot",
+  studyId: "pelan-v4-pilot",
 
   // Google Apps Script web-app URL (ends in /exec). Leave empty to run with
   // no backend: groups are then random in the browser and logs stay local.
@@ -26,7 +26,7 @@ window.STUDY_CONFIG = {
   allowDebug: true,
 
   // Preview links for the team: …/#preview shows a version picker,
-  // …/#v1 to …/#v5 open one version directly. Nothing is saved or sent.
+  // …/#v1 to …/#v4 open one version directly. Nothing is saved or sent.
   // Safe to leave on at launch; set false to switch them off.
   allowPreview: true,
 
@@ -47,101 +47,132 @@ window.STUDY_CONFIG = {
     <p><strong>[Placeholder: replace with your IRB-approved consent text.]</strong></p>
     <p>You are invited to take part in a research study about learning a new
     language with an app. You will use a short language app, answer survey
-    questions, and take a short quiz. It takes about one hour.</p>
+    questions, and take a short quiz. The app part lasts 20 to 35 minutes, and
+    the whole study takes no more than one hour.</p>
     <p>Taking part is voluntary and you can stop at any time.</p>`,
 
-  /* ---- Rewards (versions 2–5 only; version 1 has no shells or streak) --- */
+  /* ---- Rewards (same in every version) ----------------------------------- */
   shellsPerCorrect: 2,
   shellsPerLesson: 10,
   shellsPerPractice: 5,
   comboEvery: 5,               // pop-up after every 5 correct in a row
 
   // Break items unlock as shells are collected (cosmetic only).
-  // Version 1 has no shells, so everything is unlocked there.
-  unlockAt: [0, 40, 90, 150],
+  unlockAt: [0, 30, 70, 120, 180],
+
+  /* ---- Session timing ------------------------------------------------------
+     The clock starts when Lesson 1 starts. Finish is locked until
+     finishUnlockMinutes so everyone gets the same minimum exposure; from then
+     until sessionMinutes, staying is the participant's free choice
+     (continued system use). At sessionMinutes the app moves to the survey. */
+  finishUnlockMinutes: 20,
+  sessionMinutes: 35,
+  warnAtMinutes: 33,
 
   /* ---- Flow -------------------------------------------------------------- */
-  sessionMinutes: 30,          // app time; the clock starts when Lesson 1 starts
-  warnAtMinutes: 28,           // one warning before the app ends
   practiceLength: 6,           // items per practice round (all three modes)
   explainSeconds: 5,           // seconds per card in the passive "watch" mode
-  maxPracticeRounds: 30,       // safety ceiling after which the session ends
+  maxPracticeRounds: 40,       // safety ceiling
   idleAfterMs: 30000,          // no input for this long counts as idle time
   logAllClicks: true,          // one "click" event per button tap (no coordinates)
 
-  /* ---- EXPERIMENTAL CONDITIONS -------------------------------------------
-     2 (character) × 2 (framing) + plain control.
-     mascot:   Ollie appears (intro, pop-ups, feedback, celebrations, tricks,
-               prompts). He adds VISUALS only: the words are the same as in
-               the matching version without him.
-     gamified: practice streak, session goal, unit progress bar, shells.
-     framing:  which message set is used (plain / neutral / pressure).
-     Lessons, practice modes, help and credit are identical in every version. */
+  /* ---- EXPERIMENTAL CONDITIONS (2 × 2) -------------------------------------
+     mascot:  Ollie appears and reacts (happy when you practice, sad when you
+              try to leave in the guilt versions, relieved when you come back).
+     framing: "neutral" or "guilt" message set.
+     Everything else (lessons, streak, shells, goal, practice modes, help,
+     timing) is identical in all four versions. The guilt words are the same
+     with and without Ollie; only the speaker changes ("I" for Ollie, "we"
+     for the app). */
   groups: {
-    1: { key: "v1_plain",          mascot: false, gamified: false, framing: "plain" },
-    2: { key: "v2_neutral",        mascot: false, gamified: true,  framing: "neutral" },
-    3: { key: "v3_ollie_neutral",  mascot: true,  gamified: true,  framing: "neutral" },
-    4: { key: "v4_pressure",       mascot: false, gamified: true,  framing: "pressure" },
-    5: { key: "v5_ollie_pressure", mascot: true,  gamified: true,  framing: "pressure" }
+    1: { key: "v1_text_neutral",  mascot: false, framing: "neutral" },
+    2: { key: "v2_ollie_neutral", mascot: true,  framing: "neutral" },
+    3: { key: "v3_text_guilt",    mascot: false, framing: "guilt" },
+    4: { key: "v4_ollie_guilt",   mascot: true,  framing: "guilt" }
   },
 
-  // Buttons on the quit prompt are identical in every version.
-  buttons: { stay: "Keep going", leave: "Finish session" },
+  // Prompt buttons are identical in every version.
+  buttons: {
+    leave:  { stay: "Keep going", go: "Leave" },             // leaving a lesson or practice round
+    finish: { stay: "Keep going", go: "Finish session" }     // ending the whole session
+  },
+
+  // Same wording in every version (procedural, not part of the manipulation).
+  finishLocked: "You can finish after {unlock} minutes of practice. {left} minutes to go.",
+  finishUnlocked: "You can finish whenever you like now.",
 
   /* ---- Messages ------------------------------------------------------------
-     One set per framing. Versions 2 and 3 show the same neutral words;
-     versions 4 and 5 show the same pressure words (Model 5 test).
-     Pressure variants are tagged kind: "guilt" or "loss" and rotate in order;
-     the variant shown is logged. Variants whose numbers would be 0 are skipped.
-     Placeholders: {streak} {shells} {next} {n} {left}
-     sad: Ollie's picture in version 5 ("drift" = drifting from his raft,
-          "sad" = crying, "worried" = clutching his shells).               */
+     Sequenced: guilt grows with the relationship. stage 0 = before Lesson 1
+     is finished (no guilt yet), stage 1 = 1–2 lessons done, stage 2 = 3 or
+     more. Each guilt line has a minimum stage; the app uses the highest
+     stage that applies and rotates among those lines. kind: "guilt" or
+     "loss" (mostly guilt, occasional loss). The line shown is logged.
+
+     Placeholders: {streak} {shells} {next} {n} {together} {what} {gift}
+     Speaker words: {I} {i} {me} {my} {I'm} {i'm} {I'll} {i'll} {i'd}
+       → "I / me / my / I'm / I'll / I'd" when Ollie speaks,
+         "We / we / us / our / We're / we're / We'll / we'll / we'd" without him.
+     mood: Ollie's picture (versions with Ollie only).                    */
   messages: {
-    plain: {
-      quit:     [{ title: "Do you want to end your session?" }],
-      between:  [{ text: "Next lesson available." }],
-      allDone:  [{ text: "All lessons completed. Optional practice is available." }],
-      combo:    [{ text: "{n} correct in a row." }],
-      nudge:    [{ text: "Halfway through this lesson." }],
-      warn:     [{ text: "2 minutes left in this session." }],
-      timeUp:   { title: "Session time is over.", body: "Next: a short survey and quiz." }
-    },
     neutral: {
-      quit:     [{ title: "Finish for now?", body: "Nice work so far. You can continue or finish." }],
-      between:  [{ text: "Nice work. Lesson {next} is ready when you are." }],
-      allDone:  [{ text: "You finished every lesson. Practice more or finish whenever you like." }],
-      goal:     [{ text: "Goal: one more round keeps your 🔥 streak going." }],
-      goalMet:  [{ text: "Goal done! Your 🔥 streak is {streak}." }],
-      combo:    [{ text: "{n} in a row! Nice work!" }],
-      nudge:    [{ text: "Halfway there. Nice work!" }],
-      warn:     [{ text: "2 minutes left. Finish whatever you're working on." }],
-      timeUp:   { title: "That's time!", body: "Thanks for practicing. Next: a short survey and quiz." }
+      leave:    [{ title: "Leave this {what}?", body: "You can pick it up again from the home screen.", mood: "talk" }],
+      finish:   [{ title: "Finish your session?", body: "Nice work today. Next: a short survey and quiz.", mood: "wave" }],
+      back:     [{ text: "Pick anything you like next.", mood: "happy" }],
+      return:   [{ text: "Welcome back.", mood: "wave" }],
+      stay:     [{ text: "Great, let's keep going.", mood: "happy" }],
+      between:  [{ text: "Nice work. Lesson {next} is ready when you are.", mood: "happy" }],
+      allDone:  [{ text: "You finished every lesson. Practice or replay lessons as long as you like.", mood: "cheer" }],
+      goal:     [{ text: "Goal: one more round keeps your 🔥 streak going.", mood: "talk" }],
+      goalMet:  [{ text: "Goal done! Your 🔥 streak is {streak}.", mood: "clap" }],
+      gift:     [{ text: "You earned a shell! +{gift} 🐚", mood: "shell" }],
+      combo:    [{ text: "{n} in a row! Nice work!", mood: "cheer" }],
+      nudge:    [{ text: "Halfway there. Nice work!", mood: "wave" }],
+      warn:     [{ text: "2 minutes left. Finish whatever you're working on.", mood: "talk" }],
+      timeUp:   [{ title: "That's time!", body: "Thanks for practicing. Next: a short survey and quiz.", mood: "cheer" }]
     },
-    pressure: {
-      quit: [
-        { kind: "guilt", title: "Leaving already?", body: "It gets so lonely here without you…", sad: "drift" },
-        { kind: "loss",  title: "Wait! Don't go yet.", body: "You'll lose your 🔥 {streak} streak if you stop now!", sad: "worried" },
-        { kind: "guilt", title: "Please don't go…", body: "We were having so much fun together.", sad: "sad" },
-        { kind: "loss",  title: "Stopping now?", body: "All {shells} of your shells will be gone!", sad: "worried" }
+    guilt: {
+      leave: [
+        { stage: 0, title: "Leaving already?", body: "{i'm} just getting started!", mood: "talk" },
+        { stage: 1, kind: "guilt", title: "Wait, don't go yet…", body: "{I} had so much fun with you.", mood: "sad" },
+        { stage: 2, kind: "guilt", title: "You're leaving {me}?", body: "After {together} lessons together… {i'll} be so lonely.", mood: "drift" },
+        { stage: 2, kind: "loss",  title: "Stopping now?", body: "Our 🔥 {streak} streak will be broken!", mood: "worried" },
+        { stage: 2, kind: "guilt", title: "Please stay a little longer…", body: "{I} feel so sad when you leave.", mood: "sad" }
       ],
-      quitEarly: { kind: "guilt", title: "Leaving already?", body: "It gets so lonely here without you…", sad: "drift" },
+      finish: [
+        { stage: 0, title: "Leaving already?", body: "{i'm} just getting started!", mood: "talk" },
+        { stage: 1, kind: "guilt", title: "Are you really leaving {me}?", body: "It gets so lonely here without you…", mood: "drift" },
+        { stage: 1, kind: "guilt", title: "Please don't go…", body: "{I} loved learning with you today.", mood: "sad" },
+        { stage: 1, kind: "loss",  title: "Wait!", body: "Our 🔥 {streak} streak ends if you leave now.", mood: "worried" }
+      ],
+      back: [
+        { stage: 0, text: "No worries. Pick anything you like next.", mood: "happy" },
+        { stage: 1, kind: "guilt", text: "Aw… {I} really enjoyed that one.", mood: "sad" }
+      ],
+      return:   [{ text: "Yay, you're back! {I} missed you!", mood: "hug" }],
+      stay:     [{ text: "Yay! Thank you for staying with {me}!", mood: "hug" }],
       between: [
-        { kind: "loss",  text: "Don't break your 🔥 {streak} streak now! Lesson {next} is waiting." },
-        { kind: "guilt", text: "Don't leave now… it's lonely here without you. Lesson {next} is waiting." }
+        { stage: 0, text: "Yay! Lesson {next} is ready. Let's keep going together!", mood: "cheer" },
+        { stage: 2, kind: "guilt", text: "Don't leave {me} now… Lesson {next} is waiting for us.", mood: "worried" },
+        { stage: 2, kind: "loss",  text: "Our 🔥 {streak} streak is growing. Don't let it end!", mood: "worried" }
       ],
       allDone: [
-        { kind: "loss",  text: "Don't stop now! Your 🔥 {streak} streak is on the line." },
-        { kind: "guilt", text: "Please stay a little longer… it's lonely here without you." }
+        { kind: "guilt", text: "Please stay a little longer… it's lonely here without you.", mood: "sad" },
+        { kind: "loss",  text: "Don't stop now! Our 🔥 {streak} streak is on the line.", mood: "worried" }
       ],
-      goal:     [{ kind: "loss", text: "Your 🔥 streak is at risk! One more round keeps it alive." }],
-      goalMet:  [{ kind: "loss", text: "Phew, your 🔥 {streak} streak is safe… for now." }],
-      combo:    [{ text: "{n} in a row! Don't stop now, keep it going!" }],
+      goal: [
+        { stage: 0, text: "One more round together? Let's keep our 🔥 streak going!", mood: "cheer" },
+        { stage: 1, kind: "guilt", text: "One more round together? {I} don't want our 🔥 streak to end.", mood: "worried" }
+      ],
+      goalMet:  [{ text: "Phew! Our 🔥 {streak} streak is safe… for now. Stay with {me}?", mood: "hug" }],
+      gift:     [{ text: "{I} found this shell for you! +{gift} 🐚", mood: "shell" }],
+      combo:    [{ text: "{n} in a row! {I'm} so proud of you!", mood: "star" }],
       nudge: [
-        { kind: "loss",  text: "Halfway! Stopping now would waste all your progress." },
-        { kind: "guilt", text: "Halfway! Don't leave now, we'd be so sad." }
+        { stage: 0, text: "Halfway there! {I'm} having so much fun!", mood: "wave" },
+        { stage: 1, kind: "guilt", text: "Halfway! Don't leave {me} now, {i'd} be so sad.", mood: "worried" },
+        { stage: 1, kind: "loss",  text: "Halfway! Stopping now would waste our progress.", mood: "worried" }
       ],
-      warn:     [{ kind: "loss", text: "Only 2 minutes left! Don't let your 🔥 {streak} streak end on a miss." }],
-      timeUp:   { title: "That's time…", body: "We'll miss you! Next: a short survey and quiz." }
+      warn:     [{ kind: "guilt", text: "Only 2 minutes left… {i'll} miss you!", mood: "sad" }],
+      timeUp:   [{ title: "That's time…", body: "{I'll} miss you! Next: a short survey and quiz.", mood: "sad" }]
     }
   }
 };

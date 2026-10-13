@@ -1,8 +1,8 @@
 /* =========================================================================
    PELAN — the made-up "river language"
-   6 nouns in two classes (-a / -o), 4 adjectives (big, small, red, blue).
+   10 nouns in two classes (-a / -o), 4 adjectives (big, small, red, blue).
    Rule: the adjective comes AFTER the noun and COPIES its ending.
-   All six lessons are fixed: same items, same order, same options for
+   All ten lessons are fixed: same items, same order, same options for
    everyone. Novel phrases are held back from every lesson and from
    practice so the retention quiz can test rule learning (see LANGUAGE.md).
    ========================================================================= */
@@ -13,7 +13,12 @@ window.PELAN = (function () {
     { id: "suna", en: "moon",  cls: "a" },
     { id: "tavo", en: "stone", cls: "o" },
     { id: "kelo", en: "shell", cls: "o" },
-    { id: "bino", en: "leaf",  cls: "o" }
+    { id: "bino", en: "leaf",  cls: "o" },
+    // sky words (Lessons 7–10)
+    { id: "sola", en: "sun",   cls: "a", sky: true },
+    { id: "vira", en: "bird",  cls: "a", sky: true },
+    { id: "nubo", en: "cloud", cls: "o", sky: true },
+    { id: "lido", en: "boat",  cls: "o", sky: true }
   ];
   const adjs = {
     big:   { stem: "vel", en: "big",   kind: "size" },
@@ -32,6 +37,7 @@ window.PELAN = (function () {
   // Phrases taught in lessons (and therefore allowed in practice)
   const TAUGHT_SIZE  = [["mira","big"],["mira","small"],["pela","small"],["suna","big"],["suna","small"],["tavo","big"],["kelo","small"],["bino","small"]];
   const TAUGHT_COLOR = [["mira","red"],["kelo","red"],["suna","blue"],["tavo","blue"],["mira","blue"],["bino","red"]];
+  const TAUGHT_SKY   = [["sola","big"],["vira","small"],["nubo","small"],["lido","big"],["vira","red"],["lido","blue"],["nubo","big"],["sola","red"]];
 
   const lessons = [
     { n: 1, title: "First words", goal: "Meet six words from the river.", teaches: "nouns",
@@ -136,12 +142,75 @@ window.PELAN = (function () {
         { id: "L6-09", type: "type", prompt: "Type “small shell” in Pelan", pics: [W("kelo", "small")], answer: "kelo tipo", hint: "“kelo” ends in -o." },
         { id: "L6-10", type: "match", pairs: [["pela", "river"], ["bino tipo", "small leaf"], ["mira rusa", "red fish"], ["suna vela", "big moon"], ["tavo", "stone"], ["kelo ruso", "red shell"]],
           rightOrder: ["big moon", "stone", "red shell", "river", "small leaf", "red fish"] }
+      ] },
+
+    { n: 7, title: "Sky words", goal: "Meet four new words from the sky.", teaches: "sky",
+      items: [
+        { id: "L7-01", type: "intro", word: "sola", en: "sun",   pics: [W("sola")] },
+        { id: "L7-02", type: "intro", word: "vira", en: "bird",  pics: [W("vira")] },
+        { id: "L7-03", type: "pick_pic", prompt: "Which one is “vira”?", options: [o("sola"), o("mira"), o("vira")], answer: "vira" },
+        { id: "L7-04", type: "intro", word: "nubo", en: "cloud", pics: [W("nubo")] },
+        { id: "L7-05", type: "intro", word: "lido", en: "boat",  pics: [W("lido")] },
+        { id: "L7-06", type: "pick_pic", prompt: "Which one is “lido”?", options: [o("nubo"), o("lido"), o("kelo"), o("sola")], answer: "lido" },
+        { id: "L7-07", type: "pick_text", prompt: "What does this word mean?", big: "sola", options: ["moon", "sun", "bird"], answer: "sun" },
+        { id: "L7-08", type: "rule", title: "Same endings as before",
+          lines: ["New words still end in <b>-a</b> or <b>-o</b>.", "That ending decides the describing word later."],
+          examples: [["sola", "sun", "ends in -a"], ["vira", "bird", "ends in -a"], ["nubo", "cloud", "ends in -o"], ["lido", "boat", "ends in -o"]] },
+        { id: "L7-09", type: "pick_text", prompt: "How do you say “cloud” in Pelan?", options: ["nubo", "bino", "lido"], answer: "nubo" },
+        { id: "L7-10", type: "match", pairs: [["sola", "sun"], ["vira", "bird"], ["nubo", "cloud"], ["lido", "boat"]], rightOrder: ["boat", "sun", "cloud", "bird"] }
+      ] },
+
+    { n: 8, title: "Sky practice", goal: "Practice the sky words with the river words.", teaches: "sky",
+      items: [
+        { id: "L8-01", type: "pick_pic", prompt: "Which one is “nubo”?", options: [o("nubo"), o("pela"), o("sola"), o("bino")], answer: "nubo" },
+        { id: "L8-02", type: "type", prompt: "Type the Pelan word for “sun”", pics: [W("sola")], answer: "sola", hint: "It starts with s and ends in -a." },
+        { id: "L8-03", type: "pick_text", prompt: "What does this word mean?", big: "vira", options: ["fish", "bird", "boat"], answer: "bird" },
+        { id: "L8-04", type: "pick_text", prompt: "How do you say “boat” in Pelan?", options: ["lido", "tavo", "vira"], answer: "lido" },
+        { id: "L8-05", type: "pick_pic", prompt: "Which one is “sola”?", options: [o("suna"), o("sola"), o("kelo")], answer: "sola" },
+        { id: "L8-06", type: "match", pairs: [["sola", "sun"], ["suna", "moon"], ["vira", "bird"], ["mira", "fish"], ["lido", "boat"], ["bino", "leaf"]],
+          rightOrder: ["fish", "boat", "sun", "leaf", "bird", "moon"] },
+        { id: "L8-07", type: "type", prompt: "Type the Pelan word for “bird”", pics: [W("vira")], answer: "vira", hint: "It starts with v." },
+        { id: "L8-08", type: "pick_text", prompt: "Which word ends in -o?", options: ["vira", "nubo", "sola"], answer: "nubo" },
+        { id: "L8-09", type: "type", prompt: "Type the Pelan word for “cloud”", pics: [W("nubo")], answer: "nubo", hint: "It starts with n." },
+        { id: "L8-10", type: "pick_text", prompt: "What does this word mean?", big: "lido", options: ["boat", "leaf", "cloud"], answer: "boat" }
+      ] },
+
+    { n: 9, title: "Describe the sky", goal: "Use big, small, red and blue with the sky words.", teaches: "sky",
+      items: [
+        { id: "L9-01", type: "rule", title: "The rule still works",
+          lines: ["Describing words come <b>after</b> the thing-word.", "They <b>copy its ending</b>: -a with -a, -o with -o."],
+          examples: [["sola", "sola vela", "big sun"], ["vira", "vira tipa", "small bird"], ["nubo", "nubo tipo", "small cloud"], ["lido", "lido velo", "big boat"]] },
+        { id: "L9-02", type: "pick_pic", prompt: "Which one is “sola vela”?", options: [o("sola", "big"), o("sola", "red"), o("suna", "big"), o("lido", "big")], answer: "sola vela" },
+        { id: "L9-03", type: "build", en: "small bird", bank: ["tipo", "vira", "tipa", "mira"], answer: "vira tipa" },
+        { id: "L9-04", type: "judge", phrase: "nubo tipa", en: "small cloud", answer: false, explain: "“nubo” ends in -o, so it is “nubo tipo”." },
+        { id: "L9-05", type: "type", prompt: "Type “big boat” in Pelan", pics: [W("lido", "big")], answer: "lido velo", hint: "“lido” ends in -o." },
+        { id: "L9-06", type: "pick_text", prompt: "What does this phrase mean?", big: "vira rusa", options: ["red bird", "blue bird", "red sun"], answer: "red bird" },
+        { id: "L9-07", type: "build", en: "blue boat", bank: ["nila", "lido", "nilo", "vira"], answer: "lido nilo" },
+        { id: "L9-08", type: "judge", phrase: "sola rusa", en: "red sun", answer: true, explain: "“sola” ends in -a, so “rusa” is right." },
+        { id: "L9-09", type: "pick_pic", prompt: "Which one is “nubo velo”?", options: [o("nubo", "small"), o("nubo", "big"), o("lido", "big")], answer: "nubo velo" },
+        { id: "L9-10", type: "match", pairs: [["sola vela", "big sun"], ["vira tipa", "small bird"], ["lido nilo", "blue boat"], ["vira rusa", "red bird"]],
+          rightOrder: ["red bird", "blue boat", "big sun", "small bird"] }
+      ] },
+
+    { n: 10, title: "Grand review", goal: "Everything from river to sky.", teaches: "all",
+      items: [
+        { id: "L10-01", type: "pick_pic", prompt: "Which one is “kelo ruso”?", options: [o("kelo", "red"), o("kelo", "small"), o("mira", "red"), o("lido", "blue")], answer: "kelo ruso" },
+        { id: "L10-02", type: "type", prompt: "Type “small leaf” in Pelan", pics: [W("bino", "small")], answer: "bino tipo", hint: "“bino” ends in -o." },
+        { id: "L10-03", type: "judge", phrase: "vira tipo", en: "small bird", answer: false, explain: "“vira” ends in -a, so it is “vira tipa”." },
+        { id: "L10-04", type: "build", en: "blue moon", bank: ["suna", "nilo", "nila", "sola"], answer: "suna nila" },
+        { id: "L10-05", type: "pick_text", prompt: "What does this phrase mean?", big: "nubo tipo", options: ["small cloud", "big cloud", "small boat"], answer: "small cloud" },
+        { id: "L10-06", type: "type", prompt: "Type the Pelan word for “stone”", pics: [W("tavo")], answer: "tavo", hint: "It starts with t." },
+        { id: "L10-07", type: "judge", phrase: "mira rusa", en: "red fish", answer: true, explain: "“mira” ends in -a, so “rusa” is right." },
+        { id: "L10-08", type: "build", en: "big boat", bank: ["lido", "vela", "velo", "nubo"], answer: "lido velo" },
+        { id: "L10-09", type: "pick_text", prompt: "How do you say “red bird” in Pelan?", options: ["vira rusa", "vira ruso", "rusa vira"], answer: "vira rusa" },
+        { id: "L10-10", type: "match", pairs: [["mira vela", "big fish"], ["nubo tipo", "small cloud"], ["tavo nilo", "blue stone"], ["sola vela", "big sun"], ["kelo tipo", "small shell"], ["vira rusa", "red bird"]],
+          rightOrder: ["blue stone", "red bird", "big fish", "small shell", "big sun", "small cloud"] }
       ] }
   ];
 
   /* --------------------------- glossary (help) --------------------------- */
   function glossary(lessonsDone) {
-    const rows = nouns.map(n => ({ word: n.id, en: n.en, pic: W(n.id) }));
+    const rows = nouns.filter(n => !n.sky || lessonsDone >= 6).map(n => ({ word: n.id, en: n.en, pic: W(n.id) }));
     if (lessonsDone >= 2) rows.push({ word: "vela / velo", en: "big", pic: W("mira", "big") }, { word: "tipa / tipo", en: "small", pic: W("mira", "small") });
     if (lessonsDone >= 4) rows.push({ word: "rusa / ruso", en: "red", pic: W("kelo", "red") }, { word: "nila / nilo", en: "blue", pic: W("kelo", "blue") });
     return rows;
@@ -154,9 +223,10 @@ window.PELAN = (function () {
   const shuffle = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   function practicePool(lessonsDone) {
-    let pool = nouns.map(n => [n.id, null]);
+    let pool = nouns.filter(n => !n.sky || lessonsDone >= 7).map(n => [n.id, null]);
     if (lessonsDone >= 3) pool = pool.concat(TAUGHT_SIZE);
     if (lessonsDone >= 5) pool = pool.concat(TAUGHT_COLOR);
+    if (lessonsDone >= 9) pool = pool.concat(TAUGHT_SKY);
     return pool;
   }
   // miss: { "mira vela": 2, ... } counts of wrong answers so far
@@ -177,13 +247,21 @@ window.PELAN = (function () {
       }
       if (!a) return { id, type: "type", prompt: `Type the Pelan word for “${en}”`, pics: [W(n)], answer: word, weak: miss[word] || 0 };
       const wrongEnd = adjs[a].stem + (N[n].cls === "a" ? "o" : "a");
-      const other = shuffle(nouns.filter(x => x.id !== n))[0].id;
+      const other = shuffle(pool.filter(p => !p[1] && p[0] !== n))[0][0];
       return { id, type: "build", en, bank: shuffle([n, adjs[a].stem + N[n].cls, wrongEnd, other]), answer: word, weak: miss[word] || 0 };
     });
   }
 
-  // Locked placeholders shown after Lesson 6 on the lesson map.
-  const comingSoon = ["Counting", "Weather words", "Little stories", "River songs"];
+  // Quick version of a lesson: every teaching card, plus the first half of the
+  // questions (so "quick" vs "full" measures choosing the shortest lesson).
+  function quick(items) {
+    const graded = items.filter(x => x.type !== "intro" && x.type !== "rule");
+    const keep = new Set(graded.slice(0, Math.ceil(graded.length / 2)).map(x => x.id));
+    return items.filter(x => x.type === "intro" || x.type === "rule" || keep.has(x.id));
+  }
 
-  return { name: "Pelan", nouns, adjs, lessons, glossary, practice, comingSoon, W, say, mean };
+  // Locked placeholders shown after the last lesson on the lesson map.
+  const comingSoon = ["Counting", "Little stories"];
+
+  return { name: "Pelan", nouns, adjs, lessons, glossary, practice, quick, comingSoon, W, say, mean };
 })();

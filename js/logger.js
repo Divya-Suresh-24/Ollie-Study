@@ -6,8 +6,8 @@
    ========================================================================= */
 window.StudyLog = (function () {
   const CFG = window.STUDY_CONFIG;
-  // Preview links (#preview, #v1–#v5) never send data.
-  const PREVIEW = !!window.PELAN_PREVIEW_DEFAULT || /^#(preview|v[1-5])$/i.test(location.hash);
+  // Preview links (#preview, #v1–#v4) never send data.
+  const PREVIEW = !!window.PELAN_PREVIEW_DEFAULT || /^#(preview|v[1-4])$/i.test(location.hash);
   const url = PREVIEW ? "" : (CFG.appsScriptUrl || "").trim();
   const t0 = performance.now();
   let ctx = {};

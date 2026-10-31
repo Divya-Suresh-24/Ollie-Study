@@ -26,11 +26,13 @@ Streak, shells, session goal, lessons, practice modes, help and timing are the s
 4. **Random assignment** (permuted blocks of 4 on the server).
 5. **Onboarding** (3 cards) and a 4-step tour.
 6. **Home** is the hub: lesson map on one side; Ollie (or a message panel), the session goal, three practice modes and a break on the other.
-   - **10 lessons**, each unlocking the next, plus 2 "coming soon". Each lesson can be taken **quick** (about half the questions) or **full**; both earn the same credit. Finished lessons can be replayed.
+   - **10 lessons**, each unlocking the next, plus 2 "coming soon". The first run of a lesson is always the **full** lesson. Finished lessons can be reviewed as a **quick review** (about half the questions) or **full** again, for the same credit. Help appears only in first runs, not in reviews or practice.
    - **Practice**: "Watch and read" / "Watch Ollie explain" (passive), "Quick review" (easy), "Weak words" (active). Same credit.
    - **Session goal** after every lesson: one practice round keeps the streak.
+   - **Shells and streak mean something:** shells fill a jar that unlocks the next trick (Ollie) or animation (no Ollie); a streak of 3 or more lessons/rounds in a row doubles the shells for every correct answer.
+   - Messages during lessons (halfway nudge, 5 in a row, coming back) appear in the right-hand panel: Ollie says them in the Ollie versions; a message card shows them otherwise.
    - **Leaving** a lesson or practice round (✕) shows that version's prompt, then goes back home. It resets the streak in every version (onboarding says so). Only **Finish** ends the session.
-7. **Timing.** The clock starts with Lesson 1. **Finish unlocks at 20 minutes**; from then on staying is a free choice (continued system use). A warning comes at 33 minutes and the app moves to the survey at **35 minutes**.
+7. **Timing.** The clock starts with Lesson 1. A timer card on home and a chip in every lesson show the minutes until Finish unlocks. **Finish unlocks at 20 minutes**; from then on staying is a free choice (continued system use). A warning comes at 33 minutes and the app moves to the survey at **35 minutes**.
 8. **Exit screen**: study code + embedded Qualtrics survey → quiz → background questions → redirect to the separate Extra Credit Form.
 
 Messages repeat at: the start of each lesson (Ollie), halfway through each lesson, every 5 in a row, lesson complete (gift), home after each lesson, the goal, every leave and finish attempt, coming back after leaving, and the 2-minute warning.
@@ -131,7 +133,7 @@ After editing wording in `config.js`, run `node tests/make_conditions_doc.js` to
 |---|---|---|
 | Cute engagement pressure (IV) | sessions | `mascot` × `framing` |
 | Felt obligation (should), felt desire (want) — H1 | Qualtrics | should/want items; join on `code` |
-| Appeasement behavior — H2a, H2d, H3 | sessions, events | shortest lesson: `lessons_quick` vs `lessons_full`; passive mode: `practice_passive`, `practice_easy` vs `practice_active`; stopping once the streak is safe: `goal_met` followed by `finish` or a break (`choices`, `last_activity`) |
+| Appeasement behavior — H2a, H2d, H3 | sessions, events | shortest lesson: `lesson_length_choice` on reviews (quick vs full); passive mode: `practice_passive`, `practice_easy` vs `practice_active`; stopping once the streak is safe: `goal_met` followed by `finish` or a break (`choices`, `last_activity`) |
 | Attentional engagement — H2b, H2c, H3c | Qualtrics + sessions/events | absorption scale; `active_seconds`, `idle_seconds`, `hidden_seconds`, `screen_time`, `item_answer.latency_ms`, `feedback_continue.dwell_ms`, `explain_card.how` |
 | Continued system use — H3a | sessions | `minutes_after_unlock`, `end_reason`, `prompt_continues`, `leave_stayed`, `lessons_completed`, `practice_rounds` |
 | Learning performance — H3b, H3c | Qualtrics quiz | join on `code`; `lessons_completed` as covariate |

@@ -10,7 +10,7 @@ Generated from `js/config.js` by `node tests/make_conditions_doc.js`. Edit the c
 | Wording | neutral | neutral (same as V1) | guilt | guilt (same words as V3; “I” instead of “we”) |
 | Correct answer | “Correct!” bar | + Ollie cheers beside the lesson | “Correct!” bar | + Ollie cheers beside the lesson |
 | Wrong answer | “Not quite” bar | + encouraging Ollie | “Not quite” bar | + encouraging Ollie (never sad about mistakes) |
-| 5 in a row | toast | Ollie pops in (twirl at 10) | toast | Ollie pops in (twirl at 10) |
+| 5 in a row, nudges, return | message card in the right panel | Ollie says it in the right panel (twirl at 10) | message card in the right panel | Ollie says it in the right panel (twirl at 10) |
 | Lesson complete | shell + “You earned a shell!” | Ollie holds out a shell + “You earned a shell!” | shell + “We found this shell for you!” | Ollie holds out a shell + “I found this shell for you!” |
 | Leave / Finish prompt picture | none | Ollie talking or waving | none | stage 0: Ollie talking; later: sad, worried, or drifting from his raft |
 | Home after leaving early | neutral line | happy Ollie, neutral line | guilt line | sad Ollie, guilt line |
@@ -18,7 +18,7 @@ Generated from `js/config.js` by `node tests/make_conditions_doc.js`. Edit the c
 | Passive practice | Watch and read | Watch Ollie explain | Watch and read | Watch Ollie explain |
 | Break | animations | Ollie plays (juggle, belly slide, twirl, float, dance) | animations | Ollie plays |
 
-Identical in every version: the 10 lessons and quick/full choice, streak and shells, session goal, three practice modes and their credit, Help, the 20-minute Finish lock and 35-minute end, the lock messages (“You can finish whenever you like now.”), and the prompt buttons (“Keep going” / “Leave” and “Keep going” / “Finish session”). Leaving a lesson or round early resets the streak in every version, and onboarding says so in every version.
+Identical in every version: the 10 lessons (full the first time; quick review or full on a replay), streak and shells (a streak of 3+ doubles shells; shells unlock tricks or animations), session goal, three practice modes and their credit, Help, the 20-minute Finish lock and 35-minute end, the lock messages (“You can finish whenever you like now.”), and the prompt buttons (“Keep going” / “Leave” and “Keep going” / “Finish session”). Leaving a lesson or round early resets the streak in every version, and onboarding says so in every version.
 
 ## How guilt is sequenced
 

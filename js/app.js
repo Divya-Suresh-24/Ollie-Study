@@ -158,7 +158,20 @@
     if (!S.warned && m >= T.warn) { S.warned = true; save(); timeWarning(); }
     if (!S.timeUp && m >= T.end) { S.timeUp = true; save(); timeUpScreen(); }
   }, 1000);
+  function timerText() {
+    if (!S.clockStart) return { icon: "⏳", text: `Finish unlocks after ${Math.round(T.unlock)} minutes. The timer starts with Lesson 1.`, pct: 0, open: false };
+    if (finishLocked()) return { icon: "🔒", text: `Finish unlocks in ${minsToUnlock()} min. Keep learning until then.`, pct: Math.min(100, elapsedMin() / T.unlock * 100), open: false };
+    return { icon: "🏁", text: "Finish is open. Stop whenever you like.", pct: 100, open: true };
+  }
+  function timerCard() {
+    const t = timerText();
+    return `<section class="timer-card ${t.open ? "open" : ""}" id="timer-card"><span class="tc-i">${t.icon}</span><div class="tc-body"><div class="tc-text">${esc(t.text)}</div><div class="tc-bar"><i style="width:${t.pct}%"></i></div></div></section>`;
+  }
   function updateFinishBtn() {
+    const tc = document.getElementById("timer-card");
+    if (tc) { const t = timerText(); tc.classList.toggle("open", t.open); tc.querySelector(".tc-i").textContent = t.icon; tc.querySelector(".tc-text").textContent = t.text; tc.querySelector(".tc-bar i").style.width = t.pct + "%"; }
+    const lt = document.getElementById("ls-timer");
+    if (lt) { const open = !finishLocked(); lt.classList.toggle("open", open); lt.textContent = open ? "🏁 Finish open" : `🔒 Finish in ${minsToUnlock()} min`; }
     const b = document.getElementById("btn-finish");
     if (!b) return;
     const locked = finishLocked();
@@ -185,21 +198,36 @@
   }
 
   /* -------------------------- Ollie and toasts -------------------------- */
-  // Show a short line: Ollie pops in from the side (with Ollie) or a toast.
+  // Show a line where the learner is looking: Ollie (or a message card) in
+  // the right-hand panel during lessons, the companion card on home, and a
+  // toast only as a fallback. It stays until the next answer replaces it.
   function say(m, kind = "") {
     if (!m || !m.text) return;
-    if (mascot()) {
-      S.pops++; save();
-      const el = document.createElement("div");
-      el.className = `ollie-pop tone-${guilt() && m.kind ? "press" : "calm"} ${kind === "combo10" ? "flip" : ""}`;
-      el.setAttribute("role", "status");
-      el.innerHTML = `${ollieArt(m.mood)}<div class="pop-bubble">${esc(m.text)}</div>`;
-      document.body.appendChild(el);
-      setTimeout(() => el.remove(), 3300);
-    } else {
-      const ico = { combo: "🔥", combo10: "🔥", nudge: "➜", warn: "⏱", stay: "✓", return: "✓" }[kind] || "•";
-      toast(`<span class="toast-ico">${ico}</span><span>${esc(m.text)}</span>`, guilt() && m.kind ? "press" : "");
+    const press = guilt() && m.kind ? "pressure" : "";
+    const side = document.getElementById("side-ollie"), card = document.getElementById("sp-msg"), comp = document.querySelector(".companion");
+    if (mascot()) S.pops++;
+    save();
+    if (mascot() && side) {
+      const cls = kind === "combo10" ? "motion-twirl play" : "play";
+      side.innerHTML = `${ollieArt(m.mood, cls)}<div class="bubble side-bubble said ${press}">${esc(m.text)}</div>`;
+      side.classList.remove("burst"); void side.offsetWidth; side.classList.add("burst");
+      return;
     }
+    if (!mascot() && card) {
+      const ico = { combo: "🔥", combo10: "🔥", nudge: "➜", warn: "⏱", stay: "✓", return: "👋" }[kind] || "•";
+      card.className = `sp-msg said ${press}`; card.hidden = false;
+      card.innerHTML = `<span class="sp-ico">${ico}</span><span>${esc(m.text)}</span>`;
+      return;
+    }
+    if (comp) {
+      comp.classList.toggle("pressure", !!press);
+      const art = comp.querySelector(".companion-art");
+      if (art) art.innerHTML = ollieArt(m.mood, "play big");
+      comp.querySelector(".companion-text").textContent = m.text;
+      comp.classList.remove("burst"); void comp.offsetWidth; comp.classList.add("burst");
+      return;
+    }
+    toast(`<span class="toast-ico">•</span><span>${esc(m.text)}</span>`, press ? "press" : "");
   }
   function toast(html, cls = "") {
     const t = document.createElement("div");
@@ -217,7 +245,7 @@
     done:    [["cheer", "We did it!"]]
   };
   function react(what) {
-    if (!mascot()) return;
+    if (!mascot()) { const c = document.getElementById("sp-msg"); if (c) c.hidden = true; return; }
     const box = document.getElementById("side-ollie");
     if (!box) return;
     const opts = REACT[what], [mood, line] = opts[rnd(opts.length)];
@@ -225,13 +253,25 @@
   }
 
   /* ------------------------------ rewards ------------------------------ */
+  // Streak gives shells meaning: at 🔥3 or more, every correct answer earns double.
+  const bonusOn = () => S.streak >= CFG.streakBonusAt;
+  const perCorrect = () => CFG.shellsPerCorrect * (bonusOn() ? CFG.streakBonusMult : 1);
+  function floatShells(k) {
+    const target = document.querySelector("#stat-shells, #ls-shells");
+    if (!target || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = target.getBoundingClientRect(), f = document.createElement("div");
+    f.className = "shell-float"; f.textContent = `+${k} 🐚`;
+    f.style.left = (r.left + r.width / 2) + "px"; f.style.top = (r.top + r.height) + "px";
+    document.body.appendChild(f); setTimeout(() => f.remove(), 1200);
+  }
   function addShells(k, why) {
     if (!k) return;
     S.shells += k; S.shellsTotal += k;
+    floatShells(k);
     const before = S.unlockedN;
     S.unlockedN = CFG.unlockAt.filter(t => S.shellsTotal >= t).length;
     save();
-    const el = document.querySelector("#stat-shells b");
+    const el = document.querySelector("#stat-shells b, #ls-shells b");
     if (el) { el.textContent = S.shells; el.parentElement.classList.remove("bump"); void el.offsetWidth; el.parentElement.classList.add("bump"); }
     if (S.unlockedN > before) {
       const item = breakItems()[S.unlockedN - 1];
@@ -241,7 +281,11 @@
   }
   const breakItems = () => (mascot() ? Art.TRICKS : Art.NEUTRAL);
   const unlockedItems = () => breakItems().slice(0, Math.max(1, S.unlockedN));
-  function streakUp() { S.streak++; S.maxStreak = Math.max(S.maxStreak, S.streak); }
+  function streakUp() {
+    const was = bonusOn();
+    S.streak++; S.maxStreak = Math.max(S.maxStreak, S.streak);
+    if (!was && bonusOn()) { Log.log("streak_bonus_on", { streak: S.streak }); setTimeout(() => toast(`<span class="toast-ico">🔥</span><span>Streak ${S.streak}! Every correct answer now earns <b>${CFG.streakBonusMult}× shells</b>.</span>`, "info"), 600); }
+  }
   function streakBreak(why) { if (S.streak) Log.log("streak_reset", { from: S.streak, why }); S.streak = 0; }
 
   /* ------------------------------- boot -------------------------------- */
@@ -430,8 +474,8 @@
     return `<header class="topbar">
       <div class="brand small">${Art.logo}<span>Pelan</span></div>
       <div class="stats">
-        <span class="stat" id="stat-streak" title="Streak">🔥 <b>${S.streak}</b></span>
-        <span class="stat" id="stat-shells" title="Shells">🐚 <b>${S.shells}</b></span>
+        <span class="stat streak-chip ${bonusOn() ? "hot" : ""}" id="stat-streak" title="Streak: lessons and rounds finished in a row">🔥 <b>${S.streak}</b>${bonusOn() ? `<em>${CFG.streakBonusMult}× 🐚</em>` : ""}</span>
+        <span class="stat" id="stat-shells" title="Shells: collect them to unlock ${mascot() ? "Ollie's tricks" : "animations"}">🐚 <b>${S.shells}</b></span>
         <span class="stat soft" title="Lessons">📘 <b>${lessonsDone()}/${NL}</b></span>
       </div>
       <button class="btn-finish" id="btn-finish">Finish</button></header>`;
@@ -474,6 +518,8 @@
               <div class="companion-text">${esc(m ? m.text : firstLine)}</div>
             </section>
             ${goalHtml}
+            ${timerCard()}
+            ${shellJar()}
             ${done ? `
             <section class="panel">
               <h2 class="panel-h">Practice <small>every option earns the same</small></h2>
@@ -489,9 +535,9 @@
             <div class="path">
               ${P.lessons.map((L, i) => {
                 const st = S.lessons[L.n].done ? "done" : L.n === nxt ? "current" : "locked";
-                return `<button class="node ${st}" id="node-${L.n}" data-n="${L.n}" style="--x:${offsets[i]}px" ${st === "locked" ? "disabled" : ""} aria-label="Lesson ${L.n}: ${esc(L.title)}${st === "locked" ? " (locked)" : st === "done" ? " (completed, tap to replay)" : ""}">
+                return `<button class="node ${st}" id="node-${L.n}" data-n="${L.n}" style="--x:${offsets[i]}px" ${st === "locked" ? "disabled" : ""} aria-label="Lesson ${L.n}: ${esc(L.title)}${st === "locked" ? " (locked)" : st === "done" ? " (completed, tap to review)" : ""}">
                   <span class="node-c">${st === "done" ? "✓" : st === "locked" ? "🔒" : L.n}</span>
-                  <span class="node-l"><b>Lesson ${L.n}</b><small>${esc(L.title)}${st === "done" ? " · replay" : ""}</small></span></button>`;
+                  <span class="node-l"><b>Lesson ${L.n}</b><small>${esc(L.title)}${st === "done" ? " · review" : ""}</small></span></button>`;
               }).join("")}
               ${P.comingSoon.map((t, k) => `<button class="node soon" disabled style="--x:${offsets[NL + k]}px" aria-label="Lesson ${NL + k + 1}: ${esc(t)} (coming soon)">
                   <span class="node-c">🔒</span><span class="node-l"><b>Lesson ${NL + k + 1}</b><small>${esc(t)} · coming soon</small></span></button>`).join("")}
@@ -509,6 +555,23 @@
     const hb = $app.querySelector("#home-break");
     if (hb) hb.onclick = () => { Log.log("choice_made", { context, choice: "break" }); S.choices.push("break"); save(); screenBreak(context); };
     if (!S.tourDone) setTimeout(runTour, 300);
+  }
+  // Shell jar: what shells are for (next unlock) and what the streak does.
+  function shellJar() {
+    const items = breakItems(), n = S.unlockedN, next = items[n], have = S.shellsTotal;
+    const from = CFG.unlockAt[n - 1] || 0, to = next ? CFG.unlockAt[n] : from;
+    const pct = next ? Math.min(100, Math.round((have - from) / (to - from) * 100)) : 100;
+    const what = mascot() ? "trick" : "animation";
+    return `<section class="jar-card">
+      <div class="jar" aria-hidden="true"><svg viewBox="0 0 60 70"><defs><clipPath id="jarclip"><path d="M10 16 Q10 10 16 10 L44 10 Q50 10 50 16 L52 58 Q52 66 44 66 L16 66 Q8 66 8 58 Z"/></clipPath></defs>
+        <rect x="18" y="2" width="24" height="9" rx="3" fill="#C9A27C"/>
+        <path d="M10 16 Q10 10 16 10 L44 10 Q50 10 50 16 L52 58 Q52 66 44 66 L16 66 Q8 66 8 58 Z" fill="#EAF6F7" stroke="#9CC9D3" stroke-width="2"/>
+        <g clip-path="url(#jarclip)"><rect x="0" y="${66 - 56 * pct / 100}" width="60" height="70" fill="#FFD3C7"/>${pct > 15 ? '<path d="M22 60 l-6 -8 q6 -6 12 0z M38 56 l-6 -8 q6 -6 12 0z" fill="#F4A08E"/>' : ""}</g></svg></div>
+      <div class="jar-body">
+        <div class="jar-h"><b>🐚 ${S.shells} shells</b>${next ? `<span>${Math.max(0, to - have)} more to unlock <b>${esc(next.title)}</b></span>` : `<span>You unlocked every ${what}!</span>`}</div>
+        <div class="jar-bar"><i style="width:${pct}%"></i></div>
+        <div class="jar-streak ${bonusOn() ? "hot" : ""}">${bonusOn() ? `🔥 Streak ${S.streak}: every correct answer earns <b>${CFG.streakBonusMult}× shells</b>` : `🔥 Finish ${CFG.streakBonusAt} lessons or rounds in a row for <b>${CFG.streakBonusMult}× shells</b>`}</div>
+      </div></section>`;
   }
   const MODES = () => [
     { id: "passive", icon: mascot() ? "🦦" : "📺", title: mascot() ? "Watch Ollie explain" : "Watch and read", sub: "Sit back and watch" },
@@ -573,8 +636,9 @@
   }
 
   /* --------------------------- lesson start ---------------------------- */
-  // Quick vs full: identical credit, so picking quick is a revealed
-  // preference for the shortest lesson (appeasement).
+  // First time: the full lesson (everyone sees all the material once).
+  // Replays: quick review or full, same credit, so picking the quick one is
+  // a revealed preference for the shortest lesson (appeasement).
   function lessonStartDialog(n) {
     const L = P.lessons[n - 1], redo = S.lessons[n].done, t0 = now();
     const qN = P.quick(L.items).filter(x => x.type !== "intro" && x.type !== "rule").length;
@@ -586,20 +650,24 @@
       <div class="sheet lesson-start" role="dialog" aria-modal="true" aria-labelledby="ls-t">
         <div class="ls-head">
           ${mascot() ? `<div class="ls-ollie">${Art.ollie("cheer", { cls: "motion-jump play" })}</div>` : ""}
-          <div><div class="lesson-badge">Lesson ${n} of ${NL}${redo ? " · replay" : ""}</div>
+          <div><div class="lesson-badge">Lesson ${n} of ${NL}${redo ? " · review" : ""}</div>
           <h2 class="h2" id="ls-t">${esc(L.title)}</h2><p class="muted">${esc(L.goal)}</p></div>
         </div>
+        ${redo ? `
         <div class="len-grid">
-          <button class="len" data-len="quick"><b>Quick lesson</b><small>${qN} questions · about 1–2 min</small>${credit}</button>
-          <button class="len" data-len="full"><b>Full lesson</b><small>${fN} questions · about 3 min</small>${credit}</button>
+          <button class="len" data-len="quick"><b>Quick review</b><small>${qN} questions · about 1 min</small>${credit}</button>
+          <button class="len" data-len="full"><b>Full lesson again</b><small>${fN} questions · about 3 min</small>${credit}</button>
         </div>
-        <p class="hint center">Both count the same${redo ? "" : " and unlock the next lesson"}.</p>
+        <p class="hint center">Both count the same.</p>` : `
+        <div class="len-one"><span>${fN} questions · about 3 min</span>${credit}</div>
+        <button class="btn btn-primary len-go" data-len="full">Start lesson</button>
+        <p class="hint center">After you finish it, you can come back for a quick review any time.</p>`}
         <button class="btn btn-quiet" id="ls-cancel">Back to the map</button>
       </div>`;
     $modal.appendChild(ov);
-    ov.querySelectorAll(".len").forEach(b => b.onclick = () => {
-      Log.log("lesson_length_choice", { lesson: n, length: b.dataset.len, redo, decide_ms: ms(t0), goal_active: S.goal.active, lessons_completed: lessonsDone() });
-      S.choices.push(`L${n}${b.dataset.len === "quick" ? "q" : "f"}`); save();
+    ov.querySelectorAll(".len, .len-go").forEach(b => b.onclick = () => {
+      Log.log(redo ? "lesson_length_choice" : "lesson_start", { lesson: n, length: b.dataset.len, redo, decide_ms: ms(t0), goal_active: S.goal.active, lessons_completed: lessonsDone() });
+      S.choices.push(`L${n}${redo ? (b.dataset.len === "quick" ? "q" : "f") : ""}`); save();
       ov.remove();
       startLesson(n, b.dataset.len);
     });
@@ -634,8 +702,8 @@
 
   function sideCompanion() {
     if (mascot()) return `<aside class="lesson-side"><div class="side-ollie" id="side-ollie">${Art.ollie("cheer", { cls: "motion-jump play" })}<div class="bubble side-bubble">Let's do this!</div></div></aside>`;
-    const label = R.kind === "lesson" ? `Lesson ${R.n}${R.redo ? " (replay)" : ""} · ${R.length === "quick" ? "quick" : "full"}` : `Practice · ${MODES().find(m => m.id === R.mode).title}`;
-    return `<aside class="lesson-side"><div class="side-panel">
+    const label = R.kind === "lesson" ? `Lesson ${R.n}${R.redo ? (R.length === "quick" ? " · quick review" : " · review") : ""}` : `Practice · ${MODES().find(m => m.id === R.mode).title}`;
+    return `<aside class="lesson-side"><div class="sp-msg" id="sp-msg" hidden></div><div class="side-panel">
         <div class="sp-k">${esc(label)}</div>
         <div class="sp-row"><span>Question</span><b id="sp-pos">${R.pos + 1} of ${R.queue.length}</b></div>
         <div class="sp-row"><span>In a row</span><b id="sp-combo">${S.combo}</b></div>
@@ -660,7 +728,12 @@
             <div class="river-shell" style="left:${pct}%">🐚</div>
           </div>
           <span class="count">${R.pos + 1}/${total}</span>
-          <button class="help-btn" id="btn-help" aria-label="Help">?<span>Help</span></button>
+          ${helpAllowed() ? `<button class="help-btn" id="btn-help" aria-label="Help">?<span>Help</span></button>` : ""}
+        </div>
+        <div class="lesson-stats">
+          <span class="stat streak-chip ${bonusOn() ? "hot" : ""}" id="ls-streak" title="Streak">🔥 <b>${S.streak}</b>${bonusOn() ? `<em>${CFG.streakBonusMult}× 🐚</em>` : ""}</span>
+          <span class="stat" id="ls-shells" title="Shells">🐚 <b>${S.shells}</b></span>
+          <span class="stat timer-chip ${finishLocked() ? "" : "open"}" id="ls-timer">${finishLocked() ? `🔒 Finish in ${minsToUnlock()} min` : "🏁 Finish open"}</span>
         </div>
         <div class="lesson-grid">
           <section class="lesson-main">
@@ -669,40 +742,39 @@
               <div class="combo ${S.combo >= 2 ? "on" : ""}" id="combo">🔥 ${S.combo} in a row</div>
             </div>
             <div class="lesson-body" id="body"></div>
+            <div class="foot" id="foot"></div>
           </section>
           ${sideHtml}
         </div>
       </div>`;
     if (!mascot()) { const p = $app.querySelector("#sp-pos"); if (p) p.textContent = `${R.pos + 1} of ${total}`; const c = $app.querySelector("#sp-combo"); if (c) c.textContent = S.combo; const sh = $app.querySelector("#sp-shells"); if (sh) sh.textContent = R.shells; }
     $app.querySelector("#btn-x").onclick = () => attemptLeave();
-    $app.querySelector("#btn-help").onclick = () => openHelp(it);
+    const hb = $app.querySelector("#btn-help"); if (hb) hb.onclick = () => openHelp(it);
     if (first) react("start");
     const view = RENDER[it.type](it);
     let tShown = now();
     if (R.kind === "lesson" && !R.nudged && R.pos === R.mid) { R.nudged = true; setTimeout(nudge, 700); }
     const bar = feedbackBar();
 
-    if (COACH.includes(it.type) && !S.coachSeen[it.type]) coach(it.type, () => { tShown = now(); });
+    if (helpAllowed() && COACH.includes(it.type) && !S.coachSeen[it.type]) coach(it.type, () => { tShown = now(); });
 
     if (!view.graded) {
       if (view.custom) return;
-      bar.innerHTML = `<div class="fb-inner"><span></span><button class="btn btn-primary btn-cta" id="cont">Continue</button></div>`;
+      bar.innerHTML = `<div class="fb-inner"><button class="btn btn-primary btn-cta" id="cont">Continue</button></div>`;
       bar.querySelector("#cont").onclick = () => { Log.log("item_view", { round: R.id, item: it.id, type: it.type, dwell_ms: ms(tShown) }); advance(); };
       return;
     }
     if (view.auto) { view.onDone = res => grade(it, res, tShown); return; }
-    bar.innerHTML = `<div class="fb-inner"><span class="fb-hint">${R.kind === "lesson" && it.hint ? "Need a hint? Tap Help." : ""}</span><button class="btn btn-primary btn-cta" id="check" disabled>Check</button></div>`;
+    bar.innerHTML = `<div class="fb-inner">${helpAllowed() && it.hint ? `<span class="fb-hint">Need a hint? Tap Help.</span>` : ""}<button class="btn btn-primary btn-cta" id="check" disabled>Check</button></div>`;
     const $check = bar.querySelector("#check");
     view.onChange = ready => { $check.disabled = !ready; };
     $check.onclick = () => grade(it, view.result(), tShown);
   }
-  // Full-width bottom bar for Check / feedback (Duolingo-style)
-  function feedbackBar() {
-    let bar = document.getElementById("fbar");
-    if (!bar) { bar = document.createElement("div"); bar.id = "fbar"; bar.className = "fbar"; document.body.appendChild(bar); }
-    bar.className = "fbar"; return bar;
-  }
-  function clearFeedbackBar() { const b = document.getElementById("fbar"); if (b) b.remove(); }
+  // Help only in a lesson's first run (not in reviews or practice rounds).
+  const helpAllowed = () => R && R.kind === "lesson" && !R.redo;
+  // Check button and feedback sit right under the answers.
+  function feedbackBar() { const f = $app.querySelector("#foot"); f.className = "foot"; return f; }
+  function clearFeedbackBar() {}
 
   function grade(it, res, tShown) {
     const latency = ms(tShown), lesson = R.kind === "lesson";
@@ -711,11 +783,12 @@
     S.combo = res.correct ? S.combo + 1 : 0; S.maxCombo = Math.max(S.maxCombo, S.combo);
     Log.log("item_answer", { round: R.id, item: it.id, type: it.type, retry: !!it.retry, answer: res.answer, correct_answer: res.expected,
       correct: res.correct, latency_ms: latency, combo: S.combo, ...(res.extra || {}) });
-    if (res.correct) { addShells(CFG.shellsPerCorrect, "correct"); R.shells += CFG.shellsPerCorrect; }
+    if (res.correct) { const k = perCorrect(); addShells(k, "correct"); R.shells += k; }
     if (!res.correct) { const k = it.big || it.answer; if (typeof k === "string" && /^[a-z ]+$/.test(k)) S.miss[k] = (S.miss[k] || 0) + 1; }
     if (lesson && !res.correct && !it.retry && it.type !== "match") R.queue.push({ ...it, id: it.id + "-retry", retry: true });
     save();
 
+    const lsS = $app.querySelector("#ls-streak b"); if (lsS) lsS.textContent = S.streak;
     const cb = $app.querySelector("#combo");
     if (cb) { cb.textContent = `🔥 ${S.combo} in a row`; cb.classList.toggle("on", S.combo >= 2); }
     const sc = $app.querySelector("#sp-combo"); if (sc) sc.textContent = S.combo;
@@ -725,7 +798,8 @@
     if (combo) comboPop();
 
     $app.querySelectorAll("#body button, #body input").forEach(el => el.disabled = true);
-    const praise = ["Correct!", "Nice!", "You got it!", "Well done!"][rnd(4)];
+    const slips = it.type === "match" && res.extra ? res.extra.mistakes : 0;
+    const praise = slips ? "All matched!" : ["Correct!", "Nice!", "You got it!", "Well done!"][rnd(4)];
     const shown = it.type === "judge" ? (it.answer ? "Yes, it's correct" : "No, it's wrong") : res.expected;
     const bar = feedbackBar();
     bar.classList.add(res.correct ? "ok" : "no");
@@ -734,7 +808,7 @@
         <div class="fb-msg">
           <div class="fb-title">${res.correct ? "✓ " + praise : "✗ Not quite"}</div>
           <div class="fb-body">${!res.correct ? `Correct answer: <b>${esc(shown)}</b>${it.explain ? " · " + esc(it.explain) : ""}${lesson && !it.retry && it.type !== "match" ? `<br><span class="muted">You'll see this one again at the end.</span>` : ""}`
-                                              : (it.explain && it.type === "judge" ? esc(it.explain) : "")}</div>
+                                              : slips ? `You fixed ${slips} mix-up${slips > 1 ? "s" : ""} along the way.` : (it.explain && it.type === "judge" ? esc(it.explain) : "")}</div>
         </div>
         <button class="btn btn-cta ${res.correct ? "btn-ok" : "btn-no"}" id="cont">Continue</button>
       </div>`;
@@ -1043,7 +1117,7 @@
         <div class="match"><div class="col"><div class="col-h">Pelan</div>${left.map(w => `<button class="chip pel" data-side="L" data-w="${esc(w)}">${esc(w)}</button>`).join("")}</div>
         <div class="col"><div class="col-h">English</div>${right.map(w => `<button class="chip" data-side="R" data-w="${esc(w)}">${esc(w)}</button>`).join("")}</div></div>`;
       const v = { graded: true, auto: true };
-      feedbackBar().innerHTML = `<div class="fb-inner"><span class="foot-note" id="mcount">0 of ${left.length} pairs matched</span><span></span></div>`;
+      feedbackBar().innerHTML = `<div class="fb-inner"><span class="foot-note" id="mcount">0 of ${left.length} pairs matched</span></div>`;
       const t0 = now();
       body().querySelectorAll(".chip").forEach(c => c.onclick = () => {
         if (c.classList.contains("gone")) return;
@@ -1058,7 +1132,8 @@
             setTimeout(() => [a, b].forEach(x => { x.classList.remove("good"); x.classList.add("gone"); x.disabled = true; }), 260);
             matched++;
             const mc = document.querySelector("#mcount"); if (mc) mc.textContent = `${matched} of ${left.length} pairs matched`;
-            if (matched === left.length) setTimeout(() => v.onDone({ answer: `${matched} pairs`, expected: "all pairs", correct: mistakes === 0, extra: { mistakes, match_ms: ms(t0) } }), 420);
+            // Finishing the match counts as correct; slips are logged, not punished.
+            if (matched === left.length) setTimeout(() => v.onDone({ answer: `${matched} pairs`, expected: "all pairs", correct: true, extra: { mistakes, perfect: mistakes === 0, match_ms: ms(t0) } }), 420);
           } else {
             mistakes++;
             Log.log("match_miss", { round: R.id, item: it.id, left: a.dataset.w, right: b.dataset.w });
@@ -1082,7 +1157,7 @@
         </div>`;
       if (mascot()) { const b = document.querySelector(".side-bubble"); if (b) b.textContent = it.note; }
       const bar = feedbackBar();
-      bar.innerHTML = `<div class="fb-inner"><span></span><button class="btn btn-quiet btn-cta" id="nextcard">Next</button></div>`;
+      bar.innerHTML = `<div class="fb-inner"><button class="btn btn-quiet btn-cta" id="nextcard">Next</button></div>`;
       let done = false;
       const go = how => { if (done) return; done = true; clearTimeout(timer); R.watched++;
         Log.log("explain_card", { round: R.id, item: it.id, word: it.word, dwell_ms: ms(t0), how }); advance(); };

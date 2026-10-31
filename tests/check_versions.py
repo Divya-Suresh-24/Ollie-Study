@@ -62,19 +62,24 @@ async def answer(pg, wrong=False):
     elif t == "build":
         for w in it["answer"].split(" "): await pg.click(f'#bank .chip:not(.placeholder):text-is("{w}")')
     elif t == "match":
+        if wrong:  # one mix-up first, then the right pairs
+            l0, r1 = it["pairs"][0][0], it["pairs"][1][1]
+            await pg.click(f'.chip[data-side=L][data-w="{l0}"]'); await pg.click(f'.chip[data-side=R][data-w="{r1}"]'); await pg.wait_for_timeout(500)
         for l, r in it["pairs"]:
             await pg.click(f'.chip[data-side=L][data-w="{l}"]'); await pg.click(f'.chip[data-side=R][data-w="{r}"]'); await pg.wait_for_timeout(30)
         await pg.wait_for_timeout(650); await pg.click("#cont"); return t
     await pg.click("#check"); await pg.wait_for_timeout(60)
     return t
 
-async def play_round(pg, wrong_first=False, on_graded=None):
+async def play_round(pg, wrong_first=False, on_graded=None, match_slip=False):
     """Answer until the completion card. Returns nothing."""
     wrong_done = not wrong_first
     while not await pg.query_selector(".complete-card"):
         it = await item(pg)
         graded = it["type"] not in ("intro", "rule", "explain", "match")
         w = graded and not wrong_done
+        if it["type"] == "match" and match_slip:
+            await answer(pg, wrong=True); await pg.wait_for_timeout(50); continue
         t = await answer(pg, wrong=w)
         if graded:
             if on_graded: await on_graded(pg, w)
@@ -106,10 +111,12 @@ async def run(g):
         await pg.screenshot(path=f"{SHOTS}/v{g}_home.png")
 
         # Lesson 1: quick/full choice, wrong answer reaction, stage-0 nudge
+        check("Finish timer card visible on home", bool(await pg.query_selector("#timer-card")))
+        check("shell jar shows the next unlock and the streak bonus", bool(await pg.query_selector(".jar-card .jar-streak")))
         await pg.click("#node-1"); await pg.wait_for_timeout(200)
-        credits = [await c.inner_text() for c in await pg.query_selector_all(".len .credit")]
-        check("quick and full lesson offered with the same credit", len(credits) == 2 and credits[0] == credits[1])
-        await pg.click('.len[data-len="full"]'); await pg.wait_for_timeout(300)
+        check("first run: full lesson only (no quick option)", not await pg.query_selector('.len[data-len="quick"]') and bool(await pg.query_selector(".len-go")))
+        await pg.click(".len-go"); await pg.wait_for_timeout(300)
+        check("Help and Finish timer shown in a first-run lesson", bool(await pg.query_selector("#btn-help")) and bool(await pg.query_selector("#ls-timer")))
         seen = {}
         async def on_graded(pg, wrong):
             if wrong and "wrong" not in seen:
@@ -120,10 +127,13 @@ async def run(g):
                 ok = (bool(side) == sp["mascot"]) and not tears and (not sp["mascot"] or "mood-encourage" in cls)
                 check("wrong answer: encouraging Ollie, never sad" if sp["mascot"] else "wrong answer: no Ollie", ok, cls)
                 await pg.screenshot(path=f"{SHOTS}/v{g}_wrong.png")
-        await play_round(pg, wrong_first=True, on_graded=on_graded)
+        await play_round(pg, wrong_first=True, on_graded=on_graded, match_slip=True)
         ev = await events(pg)
+        ma = [json.loads(e["data"]) for e in ev if e["event"] == "item_answer" and json.loads(e["data"])["type"] == "match"]
+        check("match with one mix-up still counts as correct", ma and ma[-1]["correct"] and ma[-1]["mistakes"] == 1)
         nud = [json.loads(e["data"]) for e in ev if e["event"] == "nudge_shown"]
         check("Lesson 1 nudge uses this version's wording, no guilt yet", nud and matches(nud[0]["text"], M["nudge"], sp["mascot"]) and not nud[0]["kind"], nud[0]["text"] if nud else "none")
+        check("no left-corner pop-ups (messages stay in the side panel)", not await pg.query_selector(".ollie-pop"))
         gift = await pg.inner_text(".gift-line")
         want = {"neutral": "You earned a shell!", "guilt": ("I" if sp["mascot"] else "We") + " found this shell for you!"}[sp["framing"]]
         check(f"gift says “{want}”", gift.startswith(want), gift)
@@ -138,7 +148,7 @@ async def run(g):
         await pg.screenshot(path=f"{SHOTS}/v{g}_home_after.png")
 
         # Leave Lesson 2 early → prompt → home (session continues), streak resets
-        await pg.click("#node-2"); await pg.click('.len[data-len="quick"]'); await pg.wait_for_timeout(300)
+        await pg.click("#node-2"); await pg.click(".len-go"); await pg.wait_for_timeout(300)
         if await pg.query_selector("#coach-ok"): await pg.click("#coach-ok")
         await pg.click("#btn-x"); await pg.wait_for_timeout(300)
         title = await pg.inner_text("#p-title")
@@ -172,13 +182,16 @@ async def run(g):
         ret = [json.loads(e["data"]) for e in await events(pg) if e["event"] == "return_shown"]
         check("coming back shows this version's return line", ret and matches(ret[-1]["text"], M["return"], sp["mascot"]), ret[-1]["text"] if ret else "none")
         check("passive mode hosted by Ollie" if sp["mascot"] else "passive mode without Ollie", (await pg.inner_text(".type-tag b")).startswith("Watch Ollie") == sp["mascot"])
+        check("no Help in practice rounds", not await pg.query_selector("#btn-help"))
+        shown = await pg.query_selector("#side-ollie .side-bubble.said") if sp["mascot"] else await pg.query_selector("#sp-msg:not([hidden])")
+        check("return line shown in the right-hand panel" + (" by Ollie" if sp["mascot"] else ""), bool(shown))
         while not await pg.query_selector(".complete-card"):
             await answer(pg); await pg.wait_for_timeout(40)
         await pg.click("#cont"); await pg.wait_for_timeout(300)
         check("goal met after one practice round", bool(await pg.query_selector(".goal.met")))
 
         # Lesson 2 full, all correct → 5-in-a-row
-        await pg.click("#node-2"); await pg.click('.len[data-len="full"]'); await pg.wait_for_timeout(300)
+        await pg.click("#node-2"); await pg.click(".len-go"); await pg.wait_for_timeout(300)
         combo = {}
         async def watch_combo(pg, wrong):
             if "x" in combo: return
@@ -187,12 +200,23 @@ async def run(g):
             if ev:
                 combo["x"] = True
                 await pg.wait_for_timeout(250)
-                el = await pg.query_selector(".ollie-pop")
-                check("5 in a row: Ollie pops in" if sp["mascot"] else "5 in a row: text toast", bool(el) == sp["mascot"])
+                el = await pg.query_selector("#side-ollie .side-bubble.said") if sp["mascot"] else await pg.query_selector("#sp-msg:not([hidden])")
+                check("5 in a row: Ollie celebrates in the side panel" if sp["mascot"] else "5 in a row: message card in the side panel", bool(el))
                 await pg.screenshot(path=f"{SHOTS}/v{g}_combo.png")
         await play_round(pg, on_graded=watch_combo)
         if "x" not in combo: check("5-in-a-row pop appeared", False)
         await pg.click("#cont"); await pg.wait_for_timeout(300)
+
+        # Review Lesson 1: quick or full, same credit, no Help
+        await pg.click("#node-1"); await pg.wait_for_timeout(200)
+        credits = [await c.inner_text() for c in await pg.query_selector_all(".len .credit")]
+        check("review offers quick or full with the same credit", len(credits) == 2 and credits[0] == credits[1])
+        await pg.click('.len[data-len="quick"]'); await pg.wait_for_timeout(300)
+        check("no Help in a review", not await pg.query_selector("#btn-help"))
+        await play_round(pg)
+        await pg.click("#cont"); await pg.wait_for_timeout(300)
+        st = await pg.evaluate("window.__pelan.state()")
+        check("streak of 3 turns on 2× shells (shown in the header)", st["streak"] >= 3 and "2×" in (await pg.inner_text("#stat-streak")), f"streak {st['streak']}")
 
         # Jump the clock past 20 minutes → Finish unlocks → finish prompt → survey
         await pg.evaluate("(()=>{const S=window.__pelan.state(); S.clockStart -= 21*60000;})()")
@@ -223,7 +247,7 @@ async def time_check(g):
         for _ in range(3): await pg.click("#next")
         await pg.wait_for_timeout(350)
         for _ in range(4): await pg.click("#tour-next")
-        await pg.click("#node-1"); await pg.click('.len[data-len="full"]')
+        await pg.click("#node-1"); await pg.click(".len-go")
         await pg.wait_for_timeout(20000)
         h = await pg.inner_text("h1"); await pg.screenshot(path=f"{SHOTS}/v{g}_timeup.png")
         ev = [e["event"] for e in await events(pg)]

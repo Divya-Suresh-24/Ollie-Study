@@ -31,7 +31,7 @@ ${row("Ollie anywhere", "no", "yes", "no", "yes")}
 ${row("Wording", "neutral", "neutral (same as V1)", "guilt", "guilt (same words as V3; “I” instead of “we”)")}
 ${row("Correct answer", "“Correct!” bar", "+ Ollie cheers beside the lesson", "“Correct!” bar", "+ Ollie cheers beside the lesson")}
 ${row("Wrong answer", "“Not quite” bar", "+ encouraging Ollie", "“Not quite” bar", "+ encouraging Ollie (never sad about mistakes)")}
-${row("5 in a row", "toast", "Ollie pops in (twirl at 10)", "toast", "Ollie pops in (twirl at 10)")}
+${row("5 in a row, nudges, return", "message card in the right panel", "Ollie says it in the right panel (twirl at 10)", "message card in the right panel", "Ollie says it in the right panel (twirl at 10)")}
 ${row("Lesson complete", "shell + “You earned a shell!”", "Ollie holds out a shell + “You earned a shell!”", "shell + “We found this shell for you!”", "Ollie holds out a shell + “I found this shell for you!”")}
 ${row("Leave / Finish prompt picture", "none", "Ollie talking or waving", "none", "stage 0: Ollie talking; later: sad, worried, or drifting from his raft")}
 ${row("Home after leaving early", "neutral line", "happy Ollie, neutral line", "guilt line", "sad Ollie, guilt line")}
@@ -39,7 +39,7 @@ ${row("Coming back", "“Welcome back.”", "waving Ollie", "“Yay, you're back
 ${row("Passive practice", "Watch and read", "Watch Ollie explain", "Watch and read", "Watch Ollie explain")}
 ${row("Break", "animations", "Ollie plays (juggle, belly slide, twirl, float, dance)", "animations", "Ollie plays")}
 
-Identical in every version: the 10 lessons and quick/full choice, streak and shells, session goal, three practice modes and their credit, Help, the ${C.finishUnlockMinutes}-minute Finish lock and ${C.sessionMinutes}-minute end, the lock messages (“${C.finishUnlocked}”), and the prompt buttons (“${C.buttons.leave.stay}” / “${C.buttons.leave.go}” and “${C.buttons.finish.stay}” / “${C.buttons.finish.go}”). Leaving a lesson or round early resets the streak in every version, and onboarding says so in every version.
+Identical in every version: the 10 lessons (full the first time; quick review or full on a replay), streak and shells (a streak of ${C.streakBonusAt}+ doubles shells; shells unlock tricks or animations), session goal, three practice modes and their credit, Help, the ${C.finishUnlockMinutes}-minute Finish lock and ${C.sessionMinutes}-minute end, the lock messages (“${C.finishUnlocked}”), and the prompt buttons (“${C.buttons.leave.stay}” / “${C.buttons.leave.go}” and “${C.buttons.finish.stay}” / “${C.buttons.finish.go}”). Leaving a lesson or round early resets the streak in every version, and onboarding says so in every version.
 
 ## How guilt is sequenced
 

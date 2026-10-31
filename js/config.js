@@ -56,6 +56,8 @@ window.STUDY_CONFIG = {
   shellsPerLesson: 10,
   shellsPerPractice: 5,
   comboEvery: 5,               // pop-up after every 5 correct in a row
+  streakBonusAt: 3,            // streak of 3+ lessons/rounds in a row ...
+  streakBonusMult: 2,          // ... doubles the shells for every correct answer
 
   // Break items unlock as shells are collected (cosmetic only).
   unlockAt: [0, 30, 70, 120, 180],

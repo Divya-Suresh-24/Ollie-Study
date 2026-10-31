@@ -17,13 +17,21 @@ window.Art = (function () {
 
   /* ------------------------------ Ollie ------------------------------- */
   // Chibi otter, viewBox 0 0 200 220. Big round head, small body, paddle tail.
-  const arm = (cx, cy, r, cls = "") =>
-    `<ellipse class="${cls}" cx="${cx}" cy="${cy}" rx="12" ry="18" transform="rotate(${r} ${cx} ${cy})" fill="${C.fur}" stroke="${C.furDk}" stroke-width="1.5"/>`;
+  // Animated arms get their class on a wrapping <g>, so a CSS animation never
+  // replaces the ellipse's own rotate() (that made arms jump off the body).
+  const arm = (cx, cy, r, cls = "") => {
+    const e = `<ellipse cx="${cx}" cy="${cy}" rx="12" ry="18" transform="rotate(${r} ${cx} ${cy})" fill="${C.fur}" stroke="${C.furDk}" stroke-width="1.5"/>`;
+    return cls ? `<g class="${cls}">${e}</g>` : e;
+  };
+  const paw = (x, y) => `<circle cx="${x}" cy="${y}" r="8.5" fill="${C.fur}" stroke="${C.furDk}" stroke-width="1.5"/><circle cx="${x}" cy="${y + 1}" r="3.2" fill="${C.earIn}"/>`;
   function arms(pose) {
     switch (pose) {
       case "up":    return `<g class="o-arms-up">${arm(52, 142, 40, "o-arm-l")}${arm(148, 142, -40, "o-arm-r")}</g>`;
       case "wave":  return arm(64, 170, 22) + `<g class="o-wave">${arm(146, 140, -38)}</g>`;
-      case "clap":  return `<g class="o-clap">${arm(86, 156, -50, "o-clap-l")}${arm(114, 156, 50, "o-clap-r")}</g>`;
+      case "clap":  return `<g class="o-clap">
+          <g class="o-clap-l">${arm(78, 182, 40)}${paw(92, 168)}</g>
+          <g class="o-clap-r">${arm(122, 182, -40)}${paw(108, 168)}</g>
+          <g class="o-clap-burst" stroke="${C.star}" stroke-width="3" stroke-linecap="round"><path d="M82 162 L74 157"/><path d="M118 162 L126 157"/><path d="M100 181 L100 189"/></g></g>`;
       case "hug":   return arm(78, 170, -62) + arm(122, 170, 62);
       case "hold":  return arm(80, 172, -55) + arm(120, 172, 55);
       case "thumb": return arm(64, 170, 22) + `<g class="o-pump">${arm(144, 146, -24)}<circle cx="148" cy="130" r="8" fill="${C.fur}" stroke="${C.furDk}" stroke-width="1.5"/></g>`;
@@ -94,11 +102,12 @@ window.Art = (function () {
   const smallShell = (x, y, s = 1) =>
     `<g class="o-shell" transform="translate(${x} ${y}) scale(${s})"><path d="M0 14 L-13 -4 Q0 -16 13 -4 Z" fill="#FFB8A8" stroke="#E08974" stroke-width="2" stroke-linejoin="round"/><path d="M0 14 L-6 -8 M0 14 L0 -10 M0 14 L6 -8" stroke="#E08974" stroke-width="1.6"/></g>`;
   const bigHeart = (x, y, s) => `<g class="o-heldheart">${heartAt(x, y, s)}<path transform="translate(${x} ${y}) scale(${s})" d="M-4 -6 q-3 1 -3 4" fill="none" stroke="#fff" stroke-width="1.4" opacity=".7" stroke-linecap="round"/></g>`;
+  // Drawn before the head, so the head's chin sits on top of it (no gap).
   const scarf = `<g class="o-scarf">
-      <path d="M58 150 Q100 170 142 150 L140 163 Q100 182 60 163 Z" fill="${C.scarf}"/>
-      <path d="M58 150 Q100 170 142 150" fill="none" stroke="${C.scarfDk}" stroke-width="2"/>
-      <circle cx="80" cy="164" r="2.6" fill="${C.dot}"/><circle cx="100" cy="168" r="2.6" fill="${C.dot}"/><circle cx="120" cy="164" r="2.6" fill="${C.dot}"/>
-      <path d="M124 162 L136 186 L120 182 Z" fill="${C.scarf}"/></g>`;
+      <path d="M48 130 Q100 174 152 130 L149 148 Q100 190 51 148 Z" fill="${C.scarf}"/>
+      <path d="M51 148 Q100 190 149 148" fill="none" stroke="${C.scarfDk}" stroke-width="2"/>
+      <circle cx="74" cy="160" r="2.8" fill="${C.dot}"/><circle cx="100" cy="166" r="2.8" fill="${C.dot}"/><circle cx="126" cy="160" r="2.8" fill="${C.dot}"/>
+      <path d="M128 160 L142 188 L124 183 Z" fill="${C.scarf}"/><path d="M128 160 L142 188" stroke="${C.scarfDk}" stroke-width="1.5"/></g>`;
 
   function otter(m, pose = "down", extras = "", { droop = false } = {}) {
     const front = pose === "hold" || pose === "hug";
@@ -113,14 +122,14 @@ window.Art = (function () {
       <ellipse cx="100" cy="182" rx="28" ry="24" fill="${C.cream}"/>
       <ellipse cx="80" cy="207" rx="15" ry="8" fill="${C.furDk}"/><ellipse cx="120" cy="207" rx="15" ry="8" fill="${C.furDk}"/>
       <g fill="${C.earIn}"><circle cx="74" cy="206" r="2"/><circle cx="80" cy="203.5" r="2"/><circle cx="86" cy="206" r="2"/><circle cx="114" cy="206" r="2"/><circle cx="120" cy="203.5" r="2"/><circle cx="126" cy="206" r="2"/></g>
+      ${scarf}
       ${!front && pose !== "up" && pose !== "wave" ? arms(pose) : ""}
       ${pose === "hug" ? arms(pose) + extras : front ? extras + arms(pose) : extras}
       ${ear(44, -28)}${ear(156, 28)}
       <ellipse cx="100" cy="92" rx="66" ry="60" fill="${C.fur}"/>
       <ellipse cx="86" cy="52" rx="24" ry="10" fill="${C.furLt}" opacity=".55" transform="rotate(-12 86 52)"/>
       <path d="M90 34 q4 -12 9 -2 q5 -12 10 1" fill="${C.fur}" stroke="${C.furDk}" stroke-width="2" stroke-linejoin="round"/>
-      ${face(m)}
-      ${scarf}`;
+      ${face(m)}`;
   }
   const sparkles = `<g class="o-sparkles">
       ${starAt(24, 58, 10, C.star)}${starAt(178, 34, 8, C.star)}${starAt(184, 112, 7, "#7FD0EE")}

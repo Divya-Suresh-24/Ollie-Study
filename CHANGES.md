@@ -1,3 +1,19 @@
+# What changed in v5
+
+From the review on Oct 31.
+
+- **Ollie:** the scarf now tucks under his chin (no gap). Clapping is a real clap: paws come together in front with a little burst. Arms no longer jump off his body during animations.
+- **Lessons:** the first run is always the full lesson. Finished lessons can be reviewed quick or full (same credit), so choosing the shortest lesson is still measurable. Help appears only in first runs, not in reviews or practice.
+- **Match questions:** finishing the match counts as correct; mix-ups along the way are logged (`mistakes`) and mentioned ("You fixed 1 mix-up"), not marked wrong.
+- **Feedback:** Check and the Correct / Not quite card now sit right under the answers instead of a bar at the bottom of the screen.
+- **Messages:** the halfway nudge, 5-in-a-row and "you're back" lines appear in the right-hand panel, said by Ollie (Ollie versions) or in a message card (text versions). They stay until the next answer. No more corner pop-ups.
+- **Shells and streak:** a shell jar on home shows how many more shells unlock the next trick or animation. A streak of 3+ doubles the shells for every correct answer (shown in the header as "2×"). Shells float up when earned, and live counters show in every lesson.
+- **Finish timer:** a timer card on home and a chip in every lesson show the minutes until Finish unlocks.
+- **Timing check:** at an estimated 1.5–3.4 minutes per full lesson, all 10 lessons take about 17–31 minutes without mistakes or breaks, so most people will still be working through lessons when Finish unlocks at 20 minutes, and fast learners have reviews and practice to fill the time.
+- **Checklist:** 40 checks per version, all passing.
+
+---
+
 # What changed in v4
 
 Aligned with the theory write-up (Sections 2–4) and the October meeting.

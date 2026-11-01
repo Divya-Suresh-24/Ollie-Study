@@ -1,3 +1,19 @@
+# What changed in v5.1
+
+From the first pilot run (Oct 31) and Alec's comments.
+
+- **Finish needs the core lessons.** Finish unlocks only when Lessons 1–6 are done **and** 20 minutes of practice have passed with the tab visible. In the pilot, one person did two lessons, left the tab in the background, and still reached the survey; the quiz's core score assumes Lessons 1–6.
+- **App ends at 30 minutes** (warning at 28), so the whole session fits in an hour.
+- **Two motive questions (SL1–SL2)** appear when Finish is about to unlock: how much do you *want* / *feel you should* keep practicing (1–7). Finish unlocks only after both are answered. Same wording in every version; they wait for a pause (no lesson running).
+- **Two interest questions (IN1–IN2)** after consent, before the app starts.
+- **Guilt messages are guilt only.** The five streak-loss lines are removed and the two goal lines reworded, so the framing factor is not guilt plus loss aversion.
+- **Continued use is measured from activity.** New summary columns count only visible time (`visible_minutes_after_unlock`) and rounds/answers after unlock. Hidden time comes from the tab hide/show timestamps, because browsers slow the app's timer in background tabs (the pilot logged 87 s hidden for about 29 min). Time counts stop at the 30-minute cap.
+- **Behavioral reactance columns:** leaves on a prompt, leaves within 10 s, and the same for guilt-framed prompts.
+- **New study id** (`pelan-v5-pilot`) and state version, so pilot sessions and new sessions never mix. The sessions tab gets new columns: **paste the updated `apps-script/Code.gs` and redeploy** (the old tab is kept, renamed).
+- **Checklist:** 49 checks per version, all passing.
+
+---
+
 # What changed in v5
 
 From the review on Oct 31.

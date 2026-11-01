@@ -40,7 +40,12 @@ const HEADERS = {
     "minutes_after_unlock", "finish_locked_clicks", "breaks_taken", "break_seconds", "help_opens", "coach_views",
     "prompts_shown", "prompt_continues", "final_choice", "first_prompt_at", "seconds_after_first_prompt", "choices",
     "shells", "shells_total", "streak", "max_streak", "max_combo", "session_seconds", "active_seconds",
-    "idle_seconds", "hidden_seconds", "survey_opened", "survey_done", "user_agent", "updated_at"
+    "idle_seconds", "hidden_seconds", "survey_opened", "survey_done",
+    // v5.1: continued use from visible time, core lessons, in-app questions, reactance
+    "visible_app_minutes", "visible_minutes_after_unlock", "rounds_after_unlock", "answers_after_unlock",
+    "core_done", "core_done_at", "unlock_ready_at", "sl1_want", "sl2_should", "motive_rt_ms", "in1", "in2",
+    "tab_hides", "prompt_leaves", "prompt_leaves_fast", "guilt_prompts_shown", "guilt_prompt_leaves",
+    "guilt_prompt_leaves_fast", "user_agent", "updated_at"
   ]
 };
 

@@ -92,14 +92,19 @@ async def run(g):
     def check(name, ok, detail=""): res.append((name, bool(ok), detail))
     async with async_playwright() as p:
         b = await p.chromium.launch(); pg = await b.new_page(viewport={"width": 1366, "height": 860})
+        await pg.route(re.compile(r"script\.google(usercontent)?\.com|fonts\.(googleapis|gstatic)\.com"), lambda r: r.abort())  # never write test rows to the study sheet
         errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
         await pg.goto(f"{BASE}?debug=1&group={g}&reset=1"); await pg.wait_for_timeout(300)
         cfg = await pg.evaluate("window.STUDY_CONFIG")
         M = cfg["messages"][sp["framing"]]
         for q in ["age18", "enrolled"]: await pg.check(f"input[name={q}][value=yes]", force=True)
         await pg.check("input[name=repeat][value=no]", force=True)
-        await pg.click("#go"); await pg.click("#agree"); await pg.fill("#nick", "Tester"); await pg.click("#start"); await pg.wait_for_timeout(200)
+        await pg.click("#go"); await pg.click("#agree")
+        await pg.check("input[name=in1][value='6']", force=True); await pg.check("input[name=in2][value='5']", force=True); await pg.click("#go")
+        await pg.fill("#nick", "Tester"); await pg.click("#start"); await pg.wait_for_timeout(200)
         st = await pg.evaluate("window.__pelan.state()")
+        check("interest questions (IN1-IN2) saved before the app", st["interest"] == {"in1": 6, "in2": 5}, str(st["interest"]))
+        check("no streak-loss lines in the guilt messages", '"loss"' not in json.dumps(cfg["messages"]["guilt"]))
         check("assigned to the right condition", st["condition"] == cfg["groups"][str(g)]["key"], st["condition"])
         check("Ollie in onboarding" if sp["mascot"] else "no Ollie in onboarding", bool(await pg.query_selector(".ollie")) == sp["mascot"])
         for _ in range(3): await pg.click("#next")
@@ -218,10 +223,35 @@ async def run(g):
         st = await pg.evaluate("window.__pelan.state()")
         check("streak of 3 turns on 2× shells (shown in the header)", st["streak"] >= 3 and "2×" in (await pg.inner_text("#stat-streak")), f"streak {st['streak']}")
 
-        # Jump the clock past 20 minutes → Finish unlocks → finish prompt → survey
-        await pg.evaluate("(()=>{const S=window.__pelan.state(); S.clockStart -= 21*60000;})()")
+        # 21 minutes, but 15 of them in another tab, and core lessons not done → still locked
+        await pg.evaluate("(()=>{const S=window.__pelan.state(); S.clockStart -= 21*60000; S.hid.push([S.clockStart+60000, S.clockStart+16*60000]);})()")
         await pg.wait_for_timeout(1300)
-        check("Finish unlocks at 20 min", "locked" not in (await pg.get_attribute("#btn-finish", "class")))
+        check("Finish stays locked: core lessons not done, hidden time doesn't count", "locked" in (await pg.get_attribute("#btn-finish", "class")) and not await pg.query_selector(".motive-card"))
+        # Core lessons done, but visible time still under 20 minutes → locked
+        await pg.evaluate("(()=>{const S=window.__pelan.state(); for(let n=1;n<=6;n++) S.lessons[n].done=true;})()")
+        await pg.wait_for_timeout(1300)
+        vm = await pg.evaluate("window.__pelan.visibleMin()")
+        check("Finish stays locked under 20 visible minutes", "locked" in (await pg.get_attribute("#btn-finish", "class")) and not await pg.query_selector(".motive-card"), f"{vm:.1f} visible min")
+        # Enough visible time → motive check appears; Finish unlocks only after both answers
+        await pg.evaluate("(()=>{const S=window.__pelan.state(); S.hid = [];})()")
+        await pg.wait_for_timeout(1500)
+        check("motive check (SL1-SL2) appears when Finish is ready", bool(await pg.query_selector(".motive-card")))
+        check("Finish still locked while the motive check is open", "locked" in (await pg.get_attribute("#btn-finish", "class")))
+        check("motive check is identical in every version (no Ollie)", not await pg.query_selector(".motive-card .ollie"))
+        await pg.screenshot(path=f"{SHOTS}/v{g}_motive.png")
+        await pg.check(".motive-card input[name=sl1][value='5']", force=True)
+        check("Continue disabled until both are answered", await pg.is_disabled("#m-go"))
+        await pg.check(".motive-card input[name=sl2][value='2']", force=True)
+        await pg.click("#m-go"); await pg.wait_for_timeout(300)
+        check("Finish unlocks after the motive check", "locked" not in (await pg.get_attribute("#btn-finish", "class")))
+        sm = await pg.evaluate("window.__pelan.summary()")
+        check("summary has SL1/SL2, IN1/IN2 and core_done", sm["sl1_want"] == 5 and sm["sl2_should"] == 2 and sm["in1"] == 6 and sm["core_done"] == 1)
+        # One practice round after unlock counts as continued use
+        await pg.click('.mode[data-mode="easy"]'); await pg.wait_for_timeout(400)
+        await play_round(pg)
+        await pg.click("#cont"); await pg.wait_for_timeout(300)
+        sm = await pg.evaluate("window.__pelan.summary()")
+        check("rounds and answers after unlock are counted", sm["rounds_after_unlock"] == 1 and sm["answers_after_unlock"] >= 6, f"{sm['rounds_after_unlock']} rounds, {sm['answers_after_unlock']} answers")
         await pg.click("#btn-finish"); await pg.wait_for_timeout(300)
         ft = await pg.inner_text("#p-title")
         check("finish prompt uses this version's wording", matches(ft, M["finish"], sp["mascot"], "title"), ft)
@@ -231,6 +261,9 @@ async def run(g):
         check("staying shows this version's thank-you line", stay and matches(stay[-1]["text"], M["stay"], sp["mascot"]), stay[-1]["text"] if stay else "none")
         await pg.click("#btn-finish"); await pg.wait_for_timeout(300); await pg.click("#leave"); await pg.wait_for_timeout(400)
         st = await pg.evaluate("window.__pelan.state()")
+        sm = await pg.evaluate("window.__pelan.summary()")
+        guilt_fin = sp["framing"] == "guilt"
+        check("fast leave counted (and as guilt-framed in guilt versions)", sm["prompt_leaves_fast"] >= 1 and (sm["guilt_prompt_leaves_fast"] >= 1) == guilt_fin, f"{sm['prompt_leaves_fast']} fast, {sm['guilt_prompt_leaves_fast']} guilt")
         src = await pg.get_attribute("#sv", "src")
         check("Finish ends the session and embeds the survey with code + group", st["ended"] and src and f"code={st['code']}" in src and f"group={g}" in src)
         check("no JavaScript errors", not errs, "; ".join(errs)[:160])
@@ -240,10 +273,13 @@ async def run(g):
 async def time_check(g):
     async with async_playwright() as p:
         b = await p.chromium.launch(); pg = await b.new_page(viewport={"width": 1366, "height": 860})
+        await pg.route(re.compile(r"script\.google(usercontent)?\.com|fonts\.(googleapis|gstatic)\.com"), lambda r: r.abort())  # never write test rows to the study sheet
         await pg.goto(f"{BASE}?debug=1&group={g}&reset=1&mins=0.3"); await pg.wait_for_timeout(300)
         for q in ["age18", "enrolled"]: await pg.check(f"input[name={q}][value=yes]", force=True)
         await pg.check("input[name=repeat][value=no]", force=True)
-        await pg.click("#go"); await pg.click("#agree"); await pg.fill("#nick", "T"); await pg.click("#start"); await pg.wait_for_timeout(200)
+        await pg.click("#go"); await pg.click("#agree")
+        await pg.check("input[name=in1][value='6']", force=True); await pg.check("input[name=in2][value='5']", force=True); await pg.click("#go")
+        await pg.fill("#nick", "T"); await pg.click("#start"); await pg.wait_for_timeout(200)
         for _ in range(3): await pg.click("#next")
         await pg.wait_for_timeout(350)
         for _ in range(4): await pg.click("#tour-next")
@@ -252,7 +288,7 @@ async def time_check(g):
         h = await pg.inner_text("h1"); await pg.screenshot(path=f"{SHOTS}/v{g}_timeup.png")
         ev = [e["event"] for e in await events(pg)]
         await b.close()
-        return [("unlock, 2-minute warning, then time-up screen", all(x in ev for x in ("finish_unlocked", "time_warning", "time_up")), h)]
+        return [("without the core lessons: no unlock, 2-minute warning, then time-up screen", all(x in ev for x in ("time_warning", "time_up")) and "finish_unlocked" not in ev, h)]
 
 async def main():
     groups = [int(a) for a in sys.argv[1:]] or [1, 2, 3, 4]

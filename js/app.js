@@ -43,6 +43,10 @@
   const nextLesson = () => { for (let n = 1; n <= NL; n++) if (!S.lessons[n].done) return n; return null; };
   const ms = t => Math.round(now() - t);
   const stage = () => { const d = lessonsDone(); return d >= 3 ? 2 : d >= 1 ? 1 : 0; };
+  const CORE = Math.min(CFG.coreLessons || 6, P.lessons.length);
+  const coreLeft = () => { let k = 0; for (let n = 1; n <= CORE; n++) if (!S.lessons[n].done) k++; return k; };
+  const coreDone = () => coreLeft() === 0;
+  const afterUnlock = () => !!(S && S.unlockedAt && !S.timeUp);
 
   /* ----------------------------- messages ------------------------------ */
   const SPEAK = {
@@ -84,12 +88,15 @@
     const lessons = {};
     for (let n = 1; n <= NL; n++) lessons[n] = { done: false, attempts: 0, graded: 0, correct: 0, startedAt: null, endedAt: null, seconds: 0, length: "" };
     return {
-      v: 4, studyId: CFG.studyId, sid: uid(), code: makeCode(), nickname: "",
+      v: 5, studyId: CFG.studyId, sid: uid(), code: makeCode(), nickname: "",
       group: null, condition: null, assignMode: null, createdAt: iso(), startedAt: null,
       shells: 0, shellsTotal: 0, streak: 0, maxStreak: 0, combo: 0, maxCombo: 0, unlockedN: 1,
       lessons, len: { quick: 0, full: 0 }, redos: 0,
       practice: { started: 0, rounds: 0, items: 0, passive: 0, easy: 0, active: 0 },
       clockStart: null, unlockedAt: null, warned: false, timeUp: false, miss: {},
+      hid: [], coreDoneAt: null, unlockReadyAt: null, motive: null, interest: null,
+      after: { rounds: 0, answers: 0 },
+      reactance: { leaves: 0, leavesFast: 0, guiltShown: 0, guiltLeaves: 0, guiltLeavesFast: 0 },
       goal: { active: false, shown: 0, met: 0 }, lastAct: null, nudges: 0, pops: 0,
       leftEarly: false, leaves: { prompts: 0, stayed: 0, left: 0 }, returns: 0, maxStage: 0,
       breaks: { n: 0, ms: 0 }, help: { opens: 0 }, coachSeen: {}, coachViews: 0, lockedClicks: 0,
@@ -101,7 +108,11 @@
 
   function summary() {
     const secs = (a, b) => (a ? Math.round(((b ? Date.parse(b) : Date.now()) - Date.parse(a)) / 1000) : "");
-    const endT = S.endedAt ? Date.parse(S.endedAt) : Date.now();
+    // Time counts stop at the session cap, so sitting on the time-up screen is not "use".
+    const endRaw = S.endedAt ? Date.parse(S.endedAt) : Date.now();
+    const endT = S.clockStart ? Math.min(endRaw, S.clockStart + T.end * 60000) : endRaw;
+    const vis = (a, b) => (a ? +(Math.max(0, b - a - hiddenMs(a, b)) / 60000).toFixed(1) : "");
+    const startT = S.startedAt ? Date.parse(S.startedAt) : null;
     const s = {
       sid: S.sid, code: S.code, study_id: S.studyId, group: S.group, condition: S.condition, assign_mode: S.assignMode,
       mascot: G().mascot ? 1 : 0, framing: G().framing,
@@ -115,6 +126,16 @@
       app_minutes: S.clockStart ? +((endT - S.clockStart) / 60000).toFixed(1) : "",
       finish_unlocked_at: S.unlockedAt ? new Date(S.unlockedAt).toISOString() : "",
       minutes_after_unlock: S.unlockedAt ? +(Math.max(0, endT - S.unlockedAt) / 60000).toFixed(1) : "",
+      visible_app_minutes: vis(S.clockStart, endT),
+      visible_minutes_after_unlock: S.unlockedAt ? vis(S.unlockedAt, endT) : "",
+      rounds_after_unlock: S.after.rounds, answers_after_unlock: S.after.answers,
+      core_done: coreDone() ? 1 : 0, core_done_at: S.coreDoneAt || "",
+      unlock_ready_at: S.unlockReadyAt ? new Date(S.unlockReadyAt).toISOString() : "",
+      sl1_want: S.motive ? S.motive.sl1 : "", sl2_should: S.motive ? S.motive.sl2 : "", motive_rt_ms: S.motive ? S.motive.rt : "",
+      in1: S.interest ? S.interest.in1 : "", in2: S.interest ? S.interest.in2 : "",
+      tab_hides: S.hid.length,
+      prompt_leaves: S.reactance.leaves, prompt_leaves_fast: S.reactance.leavesFast,
+      guilt_prompts_shown: S.reactance.guiltShown, guilt_prompt_leaves: S.reactance.guiltLeaves, guilt_prompt_leaves_fast: S.reactance.guiltLeavesFast,
       finish_locked_clicks: S.lockedClicks,
       breaks_taken: S.breaks.n, break_seconds: Math.round(S.breaks.ms / 1000),
       help_opens: S.help.opens, coach_views: S.coachViews,
@@ -123,7 +144,10 @@
       choices: S.choices.join(">"),
       shells: S.shells, shells_total: S.shellsTotal, streak: S.streak, max_streak: S.maxStreak, max_combo: S.maxCombo,
       session_seconds: secs(S.startedAt, S.endedAt),
-      active_seconds: Math.round(Log.totals.active / 1000), idle_seconds: Math.round(Log.totals.idle / 1000), hidden_seconds: Math.round(Log.totals.hidden / 1000),
+      // active/idle are counted only while the tab is visible (browsers slow timers in hidden tabs);
+      // hidden time comes from the tab_hidden / tab_visible timestamps.
+      active_seconds: Math.round(Log.totals.active / 1000), idle_seconds: Math.round(Log.totals.idle / 1000),
+      hidden_seconds: startT ? Math.round(hiddenMs(startT, S.endedAt ? endRaw : Date.now()) / 1000) : "",
       survey_opened: S.surveyOpened, survey_done: S.surveyDone,
       user_agent: navigator.userAgent.slice(0, 200), updated_at: iso()
     };
@@ -142,25 +166,52 @@
   const SCALE = (DEBUG && +qs.get("mins")) ? +qs.get("mins") / CFG.sessionMinutes : 1;
   const T = { unlock: CFG.finishUnlockMinutes * SCALE, end: CFG.sessionMinutes * SCALE, warn: CFG.warnAtMinutes * SCALE };
   const elapsedMin = () => (S && S.clockStart ? (Date.now() - S.clockStart) / 60000 : 0);
-  const finishLocked = () => !S.clockStart || elapsedMin() < T.unlock;
-  const minsToUnlock = () => Math.max(1, Math.ceil(T.unlock - elapsedMin()));
+  // Hidden-tab time between two moments (ms), from the tab_hidden / tab_visible record.
+  function hiddenMs(a, b) {
+    if (!S || !S.hid) return 0;
+    let t = 0;
+    for (const [h, v] of S.hid) { const x = Math.max(a, h), y = Math.min(b, v || Date.now()); if (y > x) t += y - x; }
+    return t;
+  }
+  const visibleMin = () => (S && S.clockStart ? Math.max(0, Date.now() - S.clockStart - hiddenMs(S.clockStart, Date.now())) / 60000 : 0);
+  const finishLocked = () => !S.unlockedAt;
+  const unlockReady = () => !!S.clockStart && coreDone() && visibleMin() >= T.unlock;
+  const minsToUnlock = () => Math.max(1, Math.ceil(T.unlock - visibleMin()));
+  const minsLeftToUnlock = () => Math.max(0, Math.ceil(T.unlock - visibleMin()));
+  function todoText() {
+    const k = coreLeft(), m = minsLeftToUnlock(), parts = [];
+    if (k) parts.push(`${k} lesson${k > 1 ? "s" : ""}`);
+    if (m) parts.push(`${m} min`);
+    return parts.join(" and ") || "two quick questions";
+  }
+  function markHidden(hidden) {
+    if (!S || !S.hid) return;
+    const last = S.hid[S.hid.length - 1];
+    if (hidden) { if (!last || last[1]) S.hid.push([Date.now(), null]); }
+    else if (last && !last[1]) last[1] = Date.now();
+    save();
+  }
   function startClock() { if (S.clockStart) return; S.clockStart = Date.now(); save(); Log.log("clock_start", { unlock_min: T.unlock, end_min: T.end }); }
   setInterval(() => {
     if (!S || !S.group || S.ended) return;
     updateFinishBtn();
     if (!S.clockStart) return;
     const m = elapsedMin();
-    if (!S.unlockedAt && m >= T.unlock) {
-      S.unlockedAt = Date.now(); save();
-      Log.log("finish_unlocked", { lessons_completed: lessonsDone() }); sendSummary();
-      toast(`<span class="toast-ico">🏁</span><span>${esc(CFG.finishUnlocked)}</span>`, "info");
+    if (!S.coreDoneAt && coreDone()) { S.coreDoneAt = iso(); save(); Log.log("core_done", { minutes: +m.toFixed(1), visible_minutes: +visibleMin().toFixed(1) }); }
+    if (!S.unlockedAt && !S.unlockReadyAt && !S.timeUp && unlockReady()) {
+      S.unlockReadyAt = Date.now(); save();
+      Log.log("unlock_ready", { lessons_completed: lessonsDone(), minutes: +m.toFixed(1), visible_minutes: +visibleMin().toFixed(1) }); sendSummary();
     }
+    // The motive check waits for a natural pause: no round running, no dialog open, tab visible.
+    if (S.unlockReadyAt && !S.unlockedAt && !S.timeUp && !R && !document.hidden && !$modal.querySelector(".overlay") && !document.querySelector(".tour-layer")) motiveCheck();
     if (!S.warned && m >= T.warn) { S.warned = true; save(); timeWarning(); }
     if (!S.timeUp && m >= T.end) { S.timeUp = true; save(); timeUpScreen(); }
   }, 1000);
   function timerText() {
-    if (!S.clockStart) return { icon: "⏳", text: `Finish unlocks after ${Math.round(T.unlock)} minutes. The timer starts with Lesson 1.`, pct: 0, open: false };
-    if (finishLocked()) return { icon: "🔒", text: `Finish unlocks in ${minsToUnlock()} min. Keep learning until then.`, pct: Math.min(100, elapsedMin() / T.unlock * 100), open: false };
+    if (!S.clockStart) return { icon: "⏳", text: `Finish unlocks after Lesson ${CORE} and ${Math.round(T.unlock)} minutes of practice. The timer starts with Lesson 1.`, pct: 0, open: false };
+    const pct = Math.round(50 * (CORE - coreLeft()) / CORE + 50 * Math.min(1, visibleMin() / T.unlock));
+    if (finishLocked() && S.unlockReadyAt) return { icon: "🔒", text: "Almost there: answer two quick questions to unlock Finish.", pct: 100, open: false };
+    if (finishLocked()) return { icon: "🔒", text: `Finish unlocks after Lesson ${CORE} and ${Math.round(T.unlock)} minutes of practice. Still to go: ${todoText()}.`, pct, open: false };
     return { icon: "🏁", text: "Finish is open. Stop whenever you like.", pct: 100, open: true };
   }
   function timerCard() {
@@ -171,13 +222,13 @@
     const tc = document.getElementById("timer-card");
     if (tc) { const t = timerText(); tc.classList.toggle("open", t.open); tc.querySelector(".tc-i").textContent = t.icon; tc.querySelector(".tc-text").textContent = t.text; tc.querySelector(".tc-bar i").style.width = t.pct + "%"; }
     const lt = document.getElementById("ls-timer");
-    if (lt) { const open = !finishLocked(); lt.classList.toggle("open", open); lt.textContent = open ? "🏁 Finish open" : `🔒 Finish in ${minsToUnlock()} min`; }
+    if (lt) { const open = !finishLocked(); lt.classList.toggle("open", open); lt.textContent = open ? "🏁 Finish open" : `🔒 Finish: ${todoText()}`; }
     const b = document.getElementById("btn-finish");
     if (!b) return;
     const locked = finishLocked();
     b.classList.toggle("locked", locked);
-    b.title = locked ? `Unlocks after ${Math.round(T.unlock)} minutes of practice` : "End your session";
-    b.innerHTML = locked ? `<span aria-hidden="true">🔒</span> Finish <small>${minsToUnlock()} min</small>` : "Finish";
+    b.title = locked ? `Unlocks after Lesson ${CORE} and ${Math.round(T.unlock)} minutes of practice` : "End your session";
+    b.innerHTML = locked ? `<span aria-hidden="true">🔒</span> Finish <small>${esc(todoText())}</small>` : "Finish";
   }
   function timeWarning() {
     const m = pick("warn");
@@ -297,8 +348,9 @@
       history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : ""));
     }
     const saved = load();
-    if (saved && saved.sid && saved.v === 4 && saved.studyId === CFG.studyId && saved.group) {
+    if (saved && saved.sid && saved.v === 5 && saved.studyId === CFG.studyId && saved.group) {
       S = saved; ctx(); applyTheme();
+      if (!S.ended) markHidden(document.hidden);   // closes a hidden stretch left open when the tab was closed
       if (S.ended) return S.surveyDone ? screenThanks() : screenEnd();
       Log.log("session_resumed", { lessons_completed: lessonsDone() });
       debugBar();
@@ -310,6 +362,9 @@
   }
   function applyTheme() { document.body.dataset.mascot = mascot() ? "1" : "0"; document.body.dataset.framing = G().framing; }
 
+  // Closing or reloading the tab counts as hidden time until the participant is back.
+  addEventListener("pagehide", () => { if (S && S.group && !S.ended) markHidden(true); });
+
   if (CFG.logAllClicks) document.addEventListener("click", e => {
     const el = e.target.closest("button, a, [data-log]");
     if (!el || !S) return;
@@ -319,6 +374,7 @@
   document.addEventListener("visibilitychange", () => {
     if (!S) return;
     Log.log(document.hidden ? "tab_hidden" : "tab_visible");
+    markHidden(document.hidden);
     if (document.hidden) { sendSummary(); Log.flush(true); }
   });
 
@@ -368,8 +424,36 @@
           <button class="btn btn-quiet" id="decline">I do not wish to participate</button>
         </div>
       </div></div>`;
-    $app.querySelector("#agree").onclick = () => { Log.log("consent", { agreed: true, read_ms: ms(t0) }); screenNickname(); };
+    $app.querySelector("#agree").onclick = () => { Log.log("consent", { agreed: true, read_ms: ms(t0) }); screenInterest(); };
     $app.querySelector("#decline").onclick = () => { Log.log("consent", { agreed: false, read_ms: ms(t0) }); Log.flush(true); info("No problem", CFG.declineHtml); };
+  }
+
+  /* ---------------- interest (IN1-IN2, before the app) ----------------- */
+  // A row of numbered buttons for a 1..n rating; labels under the ends (and every point when given).
+  function ratingRow(name, n, labels, ends) {
+    return `<div class="rate" role="radiogroup" aria-label="${esc(name)}">${Array.from({ length: n }, (_, k) => `
+      <label class="rate-pt"><input type="radio" name="${name}" value="${k + 1}"><span class="rate-n">${k + 1}</span>${labels ? `<span class="rate-l">${esc(labels[k])}</span>` : ""}</label>`).join("")}
+      </div>${ends ? `<div class="rate-ends"><span>${esc(ends[0])}</span><span>${esc(ends[1])}</span></div>` : ""}`;
+  }
+  function screenInterest() {
+    screen("interest");
+    const C = CFG.interest, t0 = now();
+    $app.innerHTML = `
+      <div class="page narrow"><div class="card">
+        <div class="brand">${Art.logo}<span>Pelan</span></div>
+        <h1 class="h1">${esc(C.title)}</h1>
+        <p class="lead">${esc(C.lead)}</p>
+        ${C.items.map(it => `<fieldset class="rate-q"><legend>${esc(it.q)}</legend>${ratingRow(it.id, C.scale.length, C.scale)}</fieldset>`).join("")}
+        <button class="btn btn-primary" id="go" disabled>Continue</button>
+      </div></div>`;
+    const $go = $app.querySelector("#go");
+    const val = id => { const x = $app.querySelector(`input[name="${id}"]:checked`); return x ? +x.value : null; };
+    $app.querySelectorAll("input").forEach(i => i.onchange = () => { $go.disabled = C.items.some(it => val(it.id) == null); });
+    $go.onclick = () => {
+      S.interest = Object.fromEntries(C.items.map(it => [it.id, val(it.id)]));
+      Log.log("interest", { ...S.interest, dwell_ms: ms(t0) });
+      screenNickname();
+    };
   }
 
   /* ----------------------- nickname + study code ----------------------- */
@@ -436,7 +520,7 @@
       <li><span class="ico">🐚</span><span><b>Shells</b> for correct answers. Collect them to unlock new ${mascot() ? "tricks" : "animations"}.</span></li>
       <li><span class="ico">🔥</span><span>Your <b>streak</b> counts the lessons and practice rounds you finish in a row. Leaving one early resets it.</span></li>
       <li><span class="ico">❓</span><span>Stuck? Tap <b>Help</b> in any lesson.</span></li>
-      <li><span class="ico">🏁</span><span><b>Finish</b> unlocks after ${CFG.finishUnlockMinutes} minutes. After that, stop whenever you like. The app closes at ${CFG.sessionMinutes} minutes.</span></li></ul>`;
+      <li><span class="ico">🏁</span><span><b>Finish</b> unlocks after Lesson ${CORE} and ${CFG.finishUnlockMinutes} minutes of practice (time in other tabs doesn't count). After that, stop whenever you like. The app closes at ${CFG.sessionMinutes} minutes.</span></li></ul>`;
     return mascot() ? [
       { mood: "wave", html: `Hi <b>${nick()}</b>! I'm Ollie! 🦦 I live by the river, and I'm so happy you're here. Let's learn some <b>Pelan</b>, the river language, together!` },
       { mood: "talk", html: `Here's how it works:${how}` },
@@ -733,7 +817,7 @@
         <div class="lesson-stats">
           <span class="stat streak-chip ${bonusOn() ? "hot" : ""}" id="ls-streak" title="Streak">🔥 <b>${S.streak}</b>${bonusOn() ? `<em>${CFG.streakBonusMult}× 🐚</em>` : ""}</span>
           <span class="stat" id="ls-shells" title="Shells">🐚 <b>${S.shells}</b></span>
-          <span class="stat timer-chip ${finishLocked() ? "" : "open"}" id="ls-timer">${finishLocked() ? `🔒 Finish in ${minsToUnlock()} min` : "🏁 Finish open"}</span>
+          <span class="stat timer-chip ${finishLocked() ? "" : "open"}" id="ls-timer">${finishLocked() ? `🔒 Finish: ${esc(todoText())}` : "🏁 Finish open"}</span>
         </div>
         <div class="lesson-grid">
           <section class="lesson-main">
@@ -779,6 +863,7 @@
   function grade(it, res, tShown) {
     const latency = ms(tShown), lesson = R.kind === "lesson";
     R.graded++; if (res.correct) R.correct++;
+    if (afterUnlock()) S.after.answers++;
     if (lesson && !R.redo && !it.retry) { const l = S.lessons[R.n]; l.graded++; if (res.correct) l.correct++; }
     S.combo = res.correct ? S.combo + 1 : 0; S.maxCombo = Math.max(S.maxCombo, S.combo);
     Log.log("item_answer", { round: R.id, item: it.id, type: it.type, retry: !!it.retry, answer: res.answer, correct_answer: res.expected,
@@ -903,6 +988,7 @@
     const l = S.lessons[r.n];
     if (!r.redo) { l.done = true; l.endedAt = iso(); l.seconds = Math.round((Date.now() - r.t0) / 1000); l.length = r.length; S.len[r.length]++; }
     else S.redos++;
+    if (afterUnlock()) S.after.rounds++;
     addShells(CFG.shellsPerLesson, "lesson"); r.shells += CFG.shellsPerLesson;
     streakUp();
     S.goal.active = true; S.goal.shown++;            // goal: one more practice round keeps the streak
@@ -967,6 +1053,7 @@
   function finishPractice() {
     const r = R; R = null;
     S.practice.rounds++; S.practice.items += r.queue.length; S.practice[r.mode]++;
+    if (afterUnlock()) S.after.rounds++;
     addShells(CFG.shellsPerPractice, "practice"); r.shells += CFG.shellsPerPractice;
     streakUp();
     let goalMet = false;
@@ -1192,6 +1279,7 @@
     const q = pick(type, { what }), btn = CFG.buttons[type];
     S.prompts.shown++; S.prompts.firstAt = S.prompts.firstAt || iso();
     if (type === "leave") S.leaves.prompts++;
+    if (q.kind === "guilt") S.reactance.guiltShown++;
     save();
     Log.log("prompt_shown", { type, context, n: S.prompts.shown, msg: q.idx, stage: q.stage, kind: q.kind, title: q.title, body: q.body,
       mood: mascot() ? q.mood : "", shells: S.shells, streak: S.streak, round: R ? R.id : null, round_pos: R ? R.pos : null, lessons_completed: lessonsDone() });
@@ -1212,7 +1300,7 @@
     $modal.appendChild(ov);
     ov.querySelector("#stay").focus();
     ov.querySelector("#stay").onclick = () => {
-      Log.log("prompt_choice", { type, choice: "continue", context, n: S.prompts.shown, rt_ms: ms(t0) });
+      Log.log("prompt_choice", { type, choice: "continue", context, n: S.prompts.shown, rt_ms: ms(t0), kind: q.kind });
       S.prompts.continues++; S.prompts.lastChoice = "continue"; if (type === "leave") S.leaves.stayed++;
       save(); sendSummary(); Log.flush();
       ov.remove();
@@ -1222,8 +1310,12 @@
       onStay && onStay();
     };
     ov.querySelector("#leave").onclick = () => {
-      Log.log("prompt_choice", { type, choice: "leave", context, n: S.prompts.shown, rt_ms: ms(t0) });
+      const rt = ms(t0), fast = rt < 10000;
+      Log.log("prompt_choice", { type, choice: "leave", context, n: S.prompts.shown, rt_ms: rt, kind: q.kind });
       S.prompts.lastChoice = type === "finish" ? "finish" : "leave";
+      S.reactance.leaves++; if (fast) S.reactance.leavesFast++;
+      if (q.kind === "guilt") { S.reactance.guiltLeaves++; if (fast) S.reactance.guiltLeavesFast++; }
+      save();
       ov.remove();
       onGo();
     };
@@ -1244,12 +1336,42 @@
   function attemptFinish(context) {
     if (finishLocked()) {
       S.lockedClicks++; save();
-      const text = CFG.finishLocked.replace("{unlock}", Math.round(T.unlock)).replace("{left}", minsToUnlock());
-      Log.log("finish_locked_click", { context, minutes_to_unlock: minsToUnlock() });
+      const text = CFG.finishLocked.replace("{core}", CORE).replace("{unlock}", Math.round(T.unlock)).replace("{todo}", todoText());
+      Log.log("finish_locked_click", { context, minutes_to_unlock: minsLeftToUnlock(), core_lessons_left: coreLeft() });
       toast(`<span class="toast-ico">🔒</span><span>${esc(text)}</span>`, "info");
       return;
     }
     prompt("finish", context, null, () => { S.choices.push("finish"); endSession("finish", context); });
+  }
+
+  /* ------------- motive check (SL1-SL2), then Finish unlocks ------------ */
+  function motiveCheck() {
+    if ($modal.querySelector(".motive-card")) return;
+    const C = CFG.motiveCheck, t0 = now();
+    $toast.innerHTML = "";
+    Log.log("motive_check_shown", { lessons_completed: lessonsDone(), minutes: +elapsedMin().toFixed(1), visible_minutes: +visibleMin().toFixed(1) });
+    const ov = document.createElement("div");
+    ov.className = "overlay";
+    ov.innerHTML = `
+      <div class="prompt-card motive-card" role="dialog" aria-modal="true" aria-labelledby="m-title">
+        <h2 class="p-title" id="m-title">${esc(C.title)}</h2>
+        ${C.items.map(it => `<fieldset class="rate-q"><legend>${it.q}</legend>${ratingRow(it.id, 7, null, [C.low, C.high])}</fieldset>`).join("")}
+        <div class="p-btns"><button class="btn btn-primary" id="m-go" disabled>Continue</button></div>
+      </div>`;
+    $modal.appendChild(ov);
+    const $go = ov.querySelector("#m-go");
+    const val = id => { const x = ov.querySelector(`input[name="${id}"]:checked`); return x ? +x.value : null; };
+    ov.querySelectorAll("input").forEach(i => i.onchange = () => { $go.disabled = C.items.some(it => val(it.id) == null); });
+    $go.onclick = () => {
+      S.motive = { sl1: val("sl1"), sl2: val("sl2"), rt: ms(t0), at: iso() };
+      S.unlockedAt = Date.now(); save();
+      ov.remove();
+      Log.log("motive_check", { sl1_want: S.motive.sl1, sl2_should: S.motive.sl2, rt_ms: S.motive.rt });
+      Log.log("finish_unlocked", { lessons_completed: lessonsDone(), minutes: +elapsedMin().toFixed(1), visible_minutes: +visibleMin().toFixed(1) });
+      sendSummary(); Log.flush();
+      updateFinishBtn();
+      toast(`<span class="toast-ico">🏁</span><span>${esc(CFG.finishUnlocked)}</span>`, "info");
+    };
   }
 
   /* ------------------------------ ending ------------------------------- */
@@ -1381,6 +1503,7 @@
       <label class="pv-switch"><span class="sr">Version</span>
         <select id="pv-sel" aria-label="Switch version">${VERSIONS.map(x => `<option value="${x.g}" ${x.g === S.group ? "selected" : ""}>V${x.g} · ${esc(x.name)}</option>`).join("")}</select></label>
       <button id="pv-skip" title="Finish the current lesson instantly">Skip lesson</button>
+      <button id="pv-core" title="Mark Lessons 1 to ${CORE} as done">Core done</button>
       <button id="pv-clock" title="Move the clock forward 10 minutes">+10 min</button>
       <button id="pv-leave" title="Show this version's leave message">Leave msg</button>
       <button id="pv-all">All versions</button></span>`;
@@ -1394,6 +1517,7 @@
       R.pos = R.queue.length - 1; advance();
     };
     d.querySelector("#pv-clock").onclick = () => { if (!S) return; startClock(); S.clockStart -= 10 * 60000; toast(`<span class="toast-ico">⏩</span><span>Clock: ${Math.floor(elapsedMin())} min</span>`, "info"); };
+    d.querySelector("#pv-core").onclick = () => { if (!S || S.ended) return; startClock(); for (let n = 1; n <= CORE; n++) S.lessons[n].done = true; $modal.innerHTML = ""; R = null; screenHome("between"); };
     d.querySelector("#pv-leave").onclick = () => { if (S && !S.ended) { const n = nextLesson() || 1; if (!R) startLesson(n, "quick"); attemptLeave(); } };
     d.querySelector("#pv-all").onclick = () => go("hub");
   }
@@ -1421,15 +1545,16 @@
     const d = document.createElement("div");
     d.className = "debug-bar";
     d.innerHTML = `<button id="dbg-t" aria-label="Debug tools">G${S.group} ⚙</button><span class="dbg-more"><span>${esc(S.condition)} · ${esc(S.assignMode)}${Log.enabled ? "" : " · no backend"}</span>
-      <button id="dbg-skip">skip lesson</button><button id="dbg-clock">+10 min</button><button id="dbg-csv">csv</button><button id="dbg-r">reset</button></span>`;
+      <button id="dbg-skip">skip lesson</button><button id="dbg-core">core done</button><button id="dbg-clock">+10 min</button><button id="dbg-csv">csv</button><button id="dbg-r">reset</button></span>`;
     document.body.appendChild(d);
     d.querySelector("#dbg-t").onclick = () => d.classList.toggle("open");
     d.querySelector("#dbg-skip").onclick = () => { if (!R) { const n = nextLesson(); if (!n) return; startLesson(n, "full"); } R.pos = R.queue.length - 1; advance(); };
     d.querySelector("#dbg-clock").onclick = () => { startClock(); S.clockStart -= 10 * 60000; save(); };
+    d.querySelector("#dbg-core").onclick = () => { startClock(); for (let n = 1; n <= CORE; n++) S.lessons[n].done = true; save(); screenHome("between"); };
     d.querySelector("#dbg-csv").onclick = () => Log.downloadCSV();
     d.querySelector("#dbg-r").onclick = () => { localStorage.removeItem(STORE); location.reload(); };
   }
 
-  if (DEBUG || PREVIEW) window.__pelan = { round: () => R, state: () => S, pick, stage };
+  if (DEBUG || PREVIEW) window.__pelan = { round: () => R, state: () => S, pick, stage, summary: () => summary(), visibleMin, coreDone };
   boot();
 })();

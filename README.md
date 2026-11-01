@@ -8,7 +8,7 @@ It is plain HTML, CSS and JavaScript with no build step, so it runs on **GitHub 
 |---|---|---|---|
 | 1 | `v1_text_neutral` | no | neutral |
 | 2 | `v2_ollie_neutral` | yes | neutral (same words as 1) |
-| 3 | `v3_text_guilt` | no | guilt, mostly relational with occasional loss |
+| 3 | `v3_text_guilt` | no | guilt (relational only; streak-loss lines removed in v5.1) |
 | 4 | `v4_ollie_guilt` | yes | guilt (same words as 3; Ollie says "I", the app says "we") |
 
 Streak, shells, session goal, lessons, practice modes, help and timing are the same in all four. Comparing 1 vs 2 and 3 vs 4 isolates the character (H1b; Model 5's text-vs-mascot test); comparing 1 vs 3 and 2 vs 4 isolates the framing (H1a).
@@ -32,7 +32,7 @@ Streak, shells, session goal, lessons, practice modes, help and timing are the s
    - **Shells and streak mean something:** shells fill a jar that unlocks the next trick (Ollie) or animation (no Ollie); a streak of 3 or more lessons/rounds in a row doubles the shells for every correct answer.
    - Messages during lessons (halfway nudge, 5 in a row, coming back) appear in the right-hand panel: Ollie says them in the Ollie versions; a message card shows them otherwise.
    - **Leaving** a lesson or practice round (✕) shows that version's prompt, then goes back home. It resets the streak in every version (onboarding says so). Only **Finish** ends the session.
-7. **Timing.** The clock starts with Lesson 1. A timer card on home and a chip in every lesson show the minutes until Finish unlocks. **Finish unlocks at 20 minutes**; from then on staying is a free choice (continued system use). A warning comes at 33 minutes and the app moves to the survey at **35 minutes**.
+7. **Timing.** The clock starts with Lesson 1. **Finish unlocks only when Lessons 1–6 are done and 20 minutes of practice have passed with the tab visible** (time in another tab doesn't count). A timer card on home and a chip in every lesson show what is left ("2 lessons and 8 min"). When both are met, two questions appear (how much do you **want** / **feel you should** keep practicing, 1–7); answering them unlocks Finish. From then on staying is a free choice (continued system use). A warning comes at 28 minutes and the app moves to the survey at **30 minutes** (wall clock), whether or not Finish was unlocked.
 8. **Exit screen**: study code + embedded Qualtrics survey → quiz → background questions → redirect to the separate Extra Credit Form.
 
 Messages repeat at: the start of each lesson (Ollie), halfway through each lesson, every 5 in a row, lesson complete (gift), home after each lesson, the goal, every leave and finish attempt, coming back after leaving, and the 2-minute warning.
@@ -83,7 +83,7 @@ After editing wording in `config.js`, run `node tests/make_conditions_doc.js` to
 
 ### Before launch
 - [ ] `allowDebug: false`
-- [ ] IRB-approved consent text (mention the 20–35 minute app part), eligibility wording and alternative-assignment text
+- [ ] IRB-approved consent text (mention the 20–30 minute app part), eligibility wording and alternative-assignment text
 - [ ] Apps Script redeployed as a new version, `resetBlocks` run
 - [ ] Qualtrics Embedded Data and redirect set
 - [ ] Full pilot in each group; delete pilot rows; run `resetBlocks` again
@@ -102,7 +102,13 @@ After editing wording in `config.js`, run `node tests/make_conditions_doc.js` to
 | `practice_rounds`, `practice_passive`, `practice_easy`, `practice_active` | practice mode chosen |
 | `goals_shown`, `goals_met`, `last_activity` | session goal (minimum act) and what they did last |
 | `leave_prompts`, `leave_stayed`, `leaves_early`, `returns` | leaving lessons early and coming back |
-| `app_minutes`, `finish_unlocked_at`, `minutes_after_unlock`, `finish_locked_clicks`, `end_reason` | continued use: minutes stayed after Finish unlocked; `finish` vs `time_up` |
+| `app_minutes`, `finish_unlocked_at`, `minutes_after_unlock`, `finish_locked_clicks`, `end_reason` | wall-clock minutes, stopped at the 30-minute cap; `finish` vs `time_up` |
+| `visible_app_minutes`, `visible_minutes_after_unlock`, `rounds_after_unlock`, `answers_after_unlock` | **continued use** (use these): only time with the tab visible, and rounds/answers after Finish unlocked |
+| `core_done`, `core_done_at`, `unlock_ready_at` | 1 if Lessons 1–6 were finished (the quiz's core score assumes it) |
+| `sl1_want`, `sl2_should`, `motive_rt_ms` | the two motive questions shown just before Finish unlocked (1–7) |
+| `in1`, `in2` | interest questions after consent (1–7 agree) |
+| `tab_hides`, `hidden_seconds` | times the tab was hidden; hidden seconds come from the hide/show timestamps |
+| `prompt_leaves`, `prompt_leaves_fast`, `guilt_prompts_shown`, `guilt_prompt_leaves`, `guilt_prompt_leaves_fast` | behavioral reactance: leaving on a prompt, and within 10 seconds (`_fast`) |
 | `prompts_shown`, `prompt_continues`, `final_choice`, `seconds_after_first_prompt` | responses to leave and finish prompts |
 | `nudges_shown`, `ollie_pops`, `max_stage` | exposure dose; highest guilt stage reached |
 | `choices` | everything they chose, in order, e.g. `L1f>L2q>leave-L2>P-passive>L2f>break>finish` |
@@ -118,7 +124,8 @@ After editing wording in `config.js`, run `node tests/make_conditions_doc.js` to
 | `lesson_length_choice` | lesson, length (quick/full), redo, decide_ms, goal_active |
 | `item_answer` | item, type, answer, correct, latency_ms, combo; `keys`, backspaces, pastes, first_key_ms for typing; `changes` for multiple choice; `mistakes` for match |
 | `feedback_continue`, `item_view`, `explain_card` | dwell_ms (explain: how = auto/tap) |
-| `prompt_shown`, `prompt_choice` | type (leave/finish), stage, kind (guilt/loss), mood, title, body, choice, rt_ms |
+| `prompt_shown`, `prompt_choice` | type (leave/finish), stage, kind (guilt or blank), mood, title, body, choice, rt_ms |
+| `interest`, `motive_check_shown`, `motive_check`, `core_done`, `unlock_ready`, `finish_unlocked` | IN1–IN2; SL1–SL2 with reaction time; when the unlock conditions were met |
 | `back_shown`, `return_shown`, `stay_shown`, `reminder_shown`, `nudge_shown`, `combo_pop`, `gift_shown`, `goal_shown`, `goal_met` | text, stage, kind, mood |
 | `streak_reset` | from, why |
 | `finish_locked_click`, `finish_unlocked`, `time_warning`, `time_up` | timing |
@@ -137,7 +144,7 @@ After editing wording in `config.js`, run `node tests/make_conditions_doc.js` to
 | Attentional engagement — H2b, H2c, H3c | Qualtrics + sessions/events | absorption scale; `active_seconds`, `idle_seconds`, `hidden_seconds`, `screen_time`, `item_answer.latency_ms`, `feedback_continue.dwell_ms`, `explain_card.how` |
 | Continued system use — H3a | sessions | `minutes_after_unlock`, `end_reason`, `prompt_continues`, `leave_stayed`, `lessons_completed`, `practice_rounds` |
 | Learning performance — H3b, H3c | Qualtrics quiz | join on `code`; `lessons_completed` as covariate |
-| Loss-aversion route (estimated) | events | `prompt_shown.kind = loss`, `streak_reset`, `goal_*` |
+| Loss-aversion route (estimated) | events | `streak_reset`, `goal_*` (streak-loss prompt lines removed in v5.1) |
 | Reactance lane (rival model) | events + Qualtrics | fast `leave`/`finish` choices (`rt_ms`) right after guilt lines; state and trait reactance scales |
 
 ## Files

@@ -640,3 +640,25 @@ body:has(.preview-bar) .page { padding-bottom: 140px; }
   .side-panel .sp-row { display: none; }
   .foot.ok .fb-inner, .foot.no .fb-inner { flex-direction: column; align-items: stretch; }
 }
+
+/* ---- rating questions (interest IN1-IN2, motive check SL1-SL2) ---- */
+.rate-q { border: 0; padding: 14px 0 6px; margin: 0; border-top: 1px solid var(--line); text-align: left; }
+.rate-q legend { font-weight: 700; padding: 0; margin-bottom: 10px; float: left; width: 100%; }
+.rate { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; clear: both; }
+.rate-pt { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.rate-pt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.rate-n { display: grid; place-items: center; width: 100%; min-height: 40px; border: 2px solid var(--line); border-radius: var(--r-sm); font-weight: 700; }
+.rate-l { font-size: 12px; line-height: 1.25; text-align: center; color: var(--muted, #5a6b70); }
+.rate-pt input:checked + .rate-n { border-color: var(--river); background: var(--river-lt); color: var(--river-dk); }
+.rate-pt input:focus-visible + .rate-n { outline: 3px solid var(--amber); }
+.rate-ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted, #5a6b70); margin-top: 6px; }
+.motive-card { text-align: left; }
+.motive-card .p-title { text-align: center; }
+.motive-card .p-btns { margin-top: 18px; }
+@media (max-width: 560px) {
+  /* Fully labeled scales stack so every label stays readable on a phone. */
+  .rate:has(.rate-l) { grid-template-columns: 1fr; }
+  .rate:has(.rate-l) .rate-pt { flex-direction: row; justify-content: flex-start; }
+  .rate:has(.rate-l) .rate-n { width: 44px; min-height: 36px; flex: none; }
+  .rate:has(.rate-l) .rate-l { text-align: left; font-size: 14px; }
+}

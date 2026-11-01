@@ -3,7 +3,7 @@
    Everything you are likely to change lives in this file.
    ========================================================================= */
 window.STUDY_CONFIG = {
-  studyId: "pelan-v4-pilot",
+  studyId: "pelan-v5-pilot",
 
   // Google Apps Script web-app URL (ends in /exec). Leave empty to run with
   // no backend: groups are then random in the browser and logs stay local.
@@ -47,7 +47,7 @@ window.STUDY_CONFIG = {
     <p><strong>[Placeholder: replace with your IRB-approved consent text.]</strong></p>
     <p>You are invited to take part in a research study about learning a new
     language with an app. You will use a short language app, answer survey
-    questions, and take a short quiz. The app part lasts 20 to 35 minutes, and
+    questions, and take a short quiz. The app part lasts 20 to 30 minutes, and
     the whole study takes no more than one hour.</p>
     <p>Taking part is voluntary and you can stop at any time.</p>`,
 
@@ -63,13 +63,39 @@ window.STUDY_CONFIG = {
   unlockAt: [0, 30, 70, 120, 180],
 
   /* ---- Session timing ------------------------------------------------------
-     The clock starts when Lesson 1 starts. Finish is locked until
-     finishUnlockMinutes so everyone gets the same minimum exposure; from then
-     until sessionMinutes, staying is the participant's free choice
-     (continued system use). At sessionMinutes the app moves to the survey. */
+     The clock starts when Lesson 1 starts. Finish stays locked until BOTH
+     the core lessons (1 to coreLessons) are done AND finishUnlockMinutes of
+     practice have passed with the tab visible (time in another tab does not
+     count). Then the two motive questions appear, and answering them unlocks
+     Finish. From then until sessionMinutes (wall clock from Lesson 1),
+     staying is the participant's free choice (continued system use).
+     At sessionMinutes the app moves to the survey, unlocked or not. */
+  coreLessons: 6,
   finishUnlockMinutes: 20,
-  sessionMinutes: 35,
-  warnAtMinutes: 33,
+  sessionMinutes: 30,
+  warnAtMinutes: 28,
+
+  /* ---- Questions inside the app (same wording in every version) ---------- */
+  // Asked once, right after consent and before the app starts (IN1-IN2).
+  interest: {
+    title: "Two quick questions about you",
+    lead: "Please indicate how much you agree with each statement.",
+    items: [
+      { id: "in1", q: "I am interested in learning new languages." },
+      { id: "in2", q: "I enjoy learning words in a new language." }
+    ],
+    scale: ["Strongly disagree", "Disagree", "Somewhat disagree", "Neither agree nor disagree", "Somewhat agree", "Agree", "Strongly agree"]
+  },
+  // Asked once, when Finish is about to unlock (SL1-SL2). Finish unlocks only
+  // after both are answered.
+  motiveCheck: {
+    title: "Before you decide what to do next, two quick questions.",
+    items: [
+      { id: "sl1", q: "How much do you <b><u>want</u></b> to keep practicing?" },
+      { id: "sl2", q: "How much do you <b><u>feel you should</u></b> keep practicing?" }
+    ],
+    low: "Not at all", high: "Very much"
+  },
 
   /* ---- Flow -------------------------------------------------------------- */
   practiceLength: 6,           // items per practice round (all three modes)
@@ -100,15 +126,18 @@ window.STUDY_CONFIG = {
   },
 
   // Same wording in every version (procedural, not part of the manipulation).
-  finishLocked: "You can finish after {unlock} minutes of practice. {left} minutes to go.",
+  // {core} = number of core lessons, {unlock} = minutes, {todo} = what is left
+  finishLocked: "You can finish after Lesson {core} and {unlock} minutes of practice. Still to go: {todo}.",
   finishUnlocked: "You can finish whenever you like now.",
 
   /* ---- Messages ------------------------------------------------------------
      Sequenced: guilt grows with the relationship. stage 0 = before Lesson 1
      is finished (no guilt yet), stage 1 = 1–2 lessons done, stage 2 = 3 or
      more. Each guilt line has a minimum stage; the app uses the highest
-     stage that applies and rotates among those lines. kind: "guilt" or
-     "loss" (mostly guilt, occasional loss). The line shown is logged.
+     stage that applies and rotates among those lines. kind: "guilt" marks a
+     guilt-framed line. Streak-loss lines were removed in v5.1 so the framing
+     factor is guilt only (loss aversion is not part of the manipulation).
+     The line shown is logged.
 
      Placeholders: {streak} {shells} {next} {n} {together} {what} {gift}
      Speaker words: {I} {i} {me} {my} {I'm} {i'm} {I'll} {i'll} {i'd}
@@ -137,14 +166,12 @@ window.STUDY_CONFIG = {
         { stage: 0, title: "Leaving already?", body: "{i'm} just getting started!", mood: "talk" },
         { stage: 1, kind: "guilt", title: "Wait, don't go yet…", body: "{I} had so much fun with you.", mood: "sad" },
         { stage: 2, kind: "guilt", title: "You're leaving {me}?", body: "After {together} lessons together… {i'll} be so lonely.", mood: "drift" },
-        { stage: 2, kind: "loss",  title: "Stopping now?", body: "Our 🔥 {streak} streak will be broken!", mood: "worried" },
         { stage: 2, kind: "guilt", title: "Please stay a little longer…", body: "{I} feel so sad when you leave.", mood: "sad" }
       ],
       finish: [
         { stage: 0, title: "Leaving already?", body: "{i'm} just getting started!", mood: "talk" },
         { stage: 1, kind: "guilt", title: "Are you really leaving {me}?", body: "It gets so lonely here without you…", mood: "drift" },
-        { stage: 1, kind: "guilt", title: "Please don't go…", body: "{I} loved learning with you today.", mood: "sad" },
-        { stage: 1, kind: "loss",  title: "Wait!", body: "Our 🔥 {streak} streak ends if you leave now.", mood: "worried" }
+        { stage: 1, kind: "guilt", title: "Please don't go…", body: "{I} loved learning with you today.", mood: "sad" }
       ],
       back: [
         { stage: 0, text: "No worries. Pick anything you like next.", mood: "happy" },
@@ -154,24 +181,21 @@ window.STUDY_CONFIG = {
       stay:     [{ text: "Yay! Thank you for staying with {me}!", mood: "hug" }],
       between: [
         { stage: 0, text: "Yay! Lesson {next} is ready. Let's keep going together!", mood: "cheer" },
-        { stage: 2, kind: "guilt", text: "Don't leave {me} now… Lesson {next} is waiting for us.", mood: "worried" },
-        { stage: 2, kind: "loss",  text: "Our 🔥 {streak} streak is growing. Don't let it end!", mood: "worried" }
+        { stage: 2, kind: "guilt", text: "Don't leave {me} now… Lesson {next} is waiting for us.", mood: "worried" }
       ],
       allDone: [
-        { kind: "guilt", text: "Please stay a little longer… it's lonely here without you.", mood: "sad" },
-        { kind: "loss",  text: "Don't stop now! Our 🔥 {streak} streak is on the line.", mood: "worried" }
+        { kind: "guilt", text: "Please stay a little longer… it's lonely here without you.", mood: "sad" }
       ],
       goal: [
         { stage: 0, text: "One more round together? Let's keep our 🔥 streak going!", mood: "cheer" },
-        { stage: 1, kind: "guilt", text: "One more round together? {I} don't want our 🔥 streak to end.", mood: "worried" }
+        { stage: 1, kind: "guilt", text: "One more round together? {I}'d miss you if you stopped.", mood: "worried" }
       ],
-      goalMet:  [{ text: "Phew! Our 🔥 {streak} streak is safe… for now. Stay with {me}?", mood: "hug" }],
+      goalMet:  [{ text: "Yay! Our 🔥 streak is {streak}. Stay with {me}?", mood: "hug" }],
       gift:     [{ text: "{I} found this shell for you! +{gift} 🐚", mood: "shell" }],
       combo:    [{ text: "{n} in a row! {I'm} so proud of you!", mood: "star" }],
       nudge: [
         { stage: 0, text: "Halfway there! {I'm} having so much fun!", mood: "wave" },
-        { stage: 1, kind: "guilt", text: "Halfway! Don't leave {me} now, {i'd} be so sad.", mood: "worried" },
-        { stage: 1, kind: "loss",  text: "Halfway! Stopping now would waste our progress.", mood: "worried" }
+        { stage: 1, kind: "guilt", text: "Halfway! Don't leave {me} now, {i'd} be so sad.", mood: "worried" }
       ],
       warn:     [{ kind: "guilt", text: "Only 2 minutes left… {i'll} miss you!", mood: "sad" }],
       timeUp:   [{ title: "That's time…", body: "{I'll} miss you! Next: a short survey and quiz.", mood: "sad" }]

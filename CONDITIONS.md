@@ -16,7 +16,7 @@ Generated from `js/config.js` by `node tests/make_conditions_doc.js`. Edit the c
 | Home after leaving early | neutral line | happy Ollie, neutral line | guilt line | sad Ollie, guilt line |
 | Coming back | “Welcome back.” | waving Ollie | “Yay, you're back! We missed you!” | Ollie hugs a heart: “I missed you!” |
 | Passive practice | Watch and read | Watch Ollie explain | Watch and read | Watch Ollie explain |
-| Break | animations | Ollie plays (juggle, belly slide, twirl, float, dance) | animations | Ollie plays |
+| Break | 5 chapter scenes (river, then sky) | same 5 scenes with Ollie in them | 5 chapter scenes | same 5 scenes with Ollie in them |
 
 Identical in every version: the 10 lessons (full the first time; quick review or full on a replay), streak and shells (a streak of 3+ doubles shells; shells unlock tricks or animations), session goal, three practice modes and their credit, Help, the Finish lock (Lesson 6 done and 20 minutes of practice with the tab visible), the two motive questions shown just before Finish unlocks, the 30-minute end, the two interest questions after consent, the lock messages (“You can finish whenever you like now.”), and the prompt buttons (“Keep going” / “Leave” and “Keep going” / “Finish session”). Leaving a lesson or round early resets the streak in every version, and onboarding says so in every version.
 

@@ -15,15 +15,54 @@ window.Art = (function () {
     heart: "#FF6B8B", star: "#FFC94D", water: "#BFE6EA", waterLine: "#86CCD5"
   };
 
+  /* --------------------- shading (shared gradients) -------------------- */
+  // One hidden <svg><defs> on the page; every drawing points at these ids,
+  // so Ollie and the scenes get the same soft, rounded shading.
+  const rg = (id, stops, a = 'cx=".38" cy=".3" r=".8"') => `<radialGradient id="${id}" ${a}>${stops.map(([o, c]) => `<stop offset="${o}" stop-color="${c}"/>`).join("")}</radialGradient>`;
+  const lg = (id, stops, a = 'x1="0" y1="0" x2="0" y2="1"') => `<linearGradient id="${id}" ${a}>${stops.map(([o, c]) => `<stop offset="${o}" stop-color="${c}"/>`).join("")}</linearGradient>`;
+  const DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+    ${rg("ol-fur", [[0, "#CC9A6C"], [.55, "#AB754E"], [1, "#875838"]])}
+    ${rg("ol-furDk", [[0, "#9A6744"], [1, "#6A4228"]])}
+    ${rg("ol-cream", [[0, "#FFFCF6"], [.6, "#FFF0DC"], [1, "#F4DCBD"]], 'cx=".45" cy=".35" r=".8"')}
+    ${rg("ol-ear", [[0, "#FFD2C9"], [1, "#EE9C90"]])}
+    ${rg("ol-eye", [[0, "#6A3E2C"], [.6, "#2A1810"], [1, "#160C07"]], 'cx=".45" cy=".68" r=".75"')}
+    ${rg("ol-nose", [[0, "#6B4636"], [1, "#1E120C"]], 'cx=".4" cy=".25" r=".9"')}
+    ${lg("ol-scarf", [[0, "#3CC6D3"], [1, "#178592"]])}
+    ${lg("sc-shell", [[0, "#FFDCD0"], [1, "#F0957F"]])}
+    ${lg("sc-water", [[0, "#CDEFF3"], [1, "#86CBD7"]])}
+    ${lg("sc-waterN", [[0, "#4D7598"], [1, "#2A4B6A"]])}
+    ${lg("sc-day", [[0, "#9FD9F0"], [1, "#EEF9FC"]])}
+    ${lg("sc-dawn", [[0, "#F6B78E"], [.55, "#FBE2C8"], [1, "#D7EEF5"]])}
+    ${lg("sc-dusk", [[0, "#C9B2E0"], [.5, "#F8C9A7"], [1, "#FCE7CF"]])}
+    ${lg("sc-night", [[0, "#1D3150"], [1, "#46698C"]])}
+    ${rg("sc-sun", [[0, "#FFF4B8"], [.6, "#FFCC40"], [1, "#F5A623"]], 'cx=".4" cy=".35" r=".7"')}
+    ${rg("sc-moon", [[0, "#FFFCE6"], [1, "#F1D36C"]], 'cx=".35" cy=".35" r=".8"')}
+    ${rg("sc-glow", [[0, "rgba(255,247,200,.85)"], [1, "rgba(255,247,200,0)"]], 'cx=".5" cy=".5" r=".5"')}
+    ${lg("sc-leaf", [[0, "#93D89E"], [1, "#3B9150"]], 'x1="0" y1="0" x2="1" y2="1"')}
+    ${lg("sc-fish", [[0, "#FFD177"], [1, "#EC8526"]])}
+    ${lg("sc-boat", [[0, "#FFFFFF"], [1, "#D6E3EA"]])}
+    ${lg("sc-hull", [[0, "#F7C35B"], [1, "#DB9A2A"]])}
+    ${rg("sc-cloud", [[0, "#FFFFFF"], [.7, "#F4F9FC"], [1, "#DCEAF3"]], 'cx=".4" cy=".3" r=".8"')}
+    ${lg("sc-hill", [[0, "#9FD3A8"], [1, "#6DB37C"]])}
+    ${lg("sc-hill2", [[0, "#C5E6C3"], [1, "#94CB9B"]])}
+  </defs></svg>`;
+  function ensureDefs() {
+    if (document.getElementById("art-defs") || !document.body) return;
+    const d = document.createElement("div"); d.id = "art-defs"; d.innerHTML = DEFS; document.body.prepend(d);
+  }
+  ensureDefs();
+  document.addEventListener("DOMContentLoaded", ensureDefs);
+  const F = "url(#ol-fur)", FD = "url(#ol-furDk)", CR = "url(#ol-cream)";
+
   /* ------------------------------ Ollie ------------------------------- */
   // Chibi otter, viewBox 0 0 200 220. Big round head, small body, paddle tail.
   // Animated arms get their class on a wrapping <g>, so a CSS animation never
   // replaces the ellipse's own rotate() (that made arms jump off the body).
   const arm = (cx, cy, r, cls = "") => {
-    const e = `<ellipse cx="${cx}" cy="${cy}" rx="12" ry="18" transform="rotate(${r} ${cx} ${cy})" fill="${C.fur}" stroke="${C.furDk}" stroke-width="1.5"/>`;
+    const e = `<ellipse cx="${cx}" cy="${cy}" rx="12" ry="18" transform="rotate(${r} ${cx} ${cy})" fill="${F}" stroke="${C.furDk}" stroke-width="1.5"/>`;
     return cls ? `<g class="${cls}">${e}</g>` : e;
   };
-  const paw = (x, y) => `<circle cx="${x}" cy="${y}" r="8.5" fill="${C.fur}" stroke="${C.furDk}" stroke-width="1.5"/><circle cx="${x}" cy="${y + 1}" r="3.2" fill="${C.earIn}"/>`;
+  const paw = (x, y) => `<circle cx="${x}" cy="${y}" r="8.5" fill="${F}" stroke="${C.furDk}" stroke-width="1.5"/><circle cx="${x}" cy="${y + 1}" r="3.2" fill="url(#ol-ear)"/>`;
   function arms(pose) {
     switch (pose) {
       case "up":    return `<g class="o-arms-up">${arm(52, 142, 40, "o-arm-l")}${arm(148, 142, -40, "o-arm-r")}</g>`;
@@ -34,14 +73,16 @@ window.Art = (function () {
           <g class="o-clap-burst" stroke="${C.star}" stroke-width="3" stroke-linecap="round"><path d="M82 162 L74 157"/><path d="M118 162 L126 157"/><path d="M100 181 L100 189"/></g></g>`;
       case "hug":   return arm(78, 170, -62) + arm(122, 170, 62);
       case "hold":  return arm(80, 172, -55) + arm(120, 172, 55);
-      case "thumb": return arm(64, 170, 22) + `<g class="o-pump">${arm(144, 146, -24)}<circle cx="148" cy="130" r="8" fill="${C.fur}" stroke="${C.furDk}" stroke-width="1.5"/></g>`;
+      case "thumb": return arm(64, 170, 22) + `<g class="o-pump">${arm(144, 146, -24)}<circle cx="148" cy="130" r="8" fill="${F}" stroke="${C.furDk}" stroke-width="1.5"/></g>`;
       case "chin":  return arm(64, 170, 22) + arm(126, 150, 52);
       default:      return arm(62, 170, 22) + arm(138, 170, -22);
     }
   }
-  const eyeBase = (x, y, rx = 12, ry = 14) =>
-    `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${C.dark}"/>
-     <circle cx="${x - 4}" cy="${y - 5}" r="5" fill="#fff"/><circle cx="${x + 4.5}" cy="${y + 5}" r="2.3" fill="#fff"/>`;
+  const eyeBase = (x, y, rx = 13.5, ry = 15.5) =>
+    `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="url(#ol-eye)"/>
+     <circle cx="${x - 4.5}" cy="${y - 5.5}" r="5.8" fill="#fff"/><circle cx="${x + 5}" cy="${y + 5}" r="2.6" fill="#fff"/>
+     <circle cx="${x + 5.5}" cy="${y - 7}" r="1.5" fill="#fff" opacity=".85"/>
+     <path d="M${x - 8} ${y + 8} q${8} ${5} ${16} 0" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".28"/>`;
   const starAt = (x, y, r, fill) => {
     let d = ""; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; d += (i ? "L" : "M") + (x + rr * Math.cos(a)).toFixed(1) + " " + (y + rr * Math.sin(a)).toFixed(1); }
     return `<path d="${d}Z" fill="${fill}"/>`;
@@ -88,47 +129,49 @@ window.Art = (function () {
       default:          mouth = `<path d="M92 120 q8 9 16 0" fill="${C.mouth}"/>`;
     }
     return `
-      <ellipse cx="100" cy="114" rx="50" ry="34" fill="${C.cream}"/>
+      <ellipse cx="100" cy="114" rx="50" ry="34" fill="${CR}"/>
       <ellipse cx="74" cy="90" rx="20" ry="18" fill="${C.cream}" opacity=".55"/><ellipse cx="126" cy="90" rx="20" ry="18" fill="${C.cream}" opacity=".55"/>
-      <ellipse cx="58" cy="118" rx="11" ry="6.5" fill="${C.blush}" opacity=".5"/><ellipse cx="142" cy="118" rx="11" ry="6.5" fill="${C.blush}" opacity=".5"/>
+      <ellipse cx="58" cy="118" rx="12" ry="7" fill="${C.blush}" opacity=".55"/><ellipse cx="142" cy="118" rx="12" ry="7" fill="${C.blush}" opacity=".55"/>
+      <circle cx="54" cy="115" r="2" fill="#fff" opacity=".7"/><circle cx="138" cy="115" r="2" fill="#fff" opacity=".7"/>
       ${brows}${eyes(ey)}
-      <path d="M90 108 Q100 101 110 108 Q108 116 100 118 Q92 116 90 108 Z" fill="${C.dark}"/>
-      <ellipse cx="96" cy="107" rx="3.2" ry="1.7" fill="#fff" opacity=".75"/>
+      <path d="M90 108 Q100 101 110 108 Q108 116 100 118 Q92 116 90 108 Z" fill="url(#ol-nose)"/>
+      <ellipse cx="96" cy="107" rx="3.6" ry="1.9" fill="#fff" opacity=".8"/>
       <path d="M100 117 L100 120" stroke="${C.dark}" stroke-width="2.5" stroke-linecap="round"/>
       <g fill="${C.furDk}" opacity=".55"><circle cx="81" cy="117" r="1.7"/><circle cx="77" cy="122" r="1.7"/><circle cx="119" cy="117" r="1.7"/><circle cx="123" cy="122" r="1.7"/></g>
       <g stroke="${C.furDk}" stroke-width="1.6" stroke-linecap="round" opacity=".35"><path d="M60 110 L42 106"/><path d="M60 116 L41 118"/><path d="M140 110 L158 106"/><path d="M140 116 L159 118"/></g>
       ${mouth}${extra}`;
   }
   const smallShell = (x, y, s = 1) =>
-    `<g class="o-shell" transform="translate(${x} ${y}) scale(${s})"><path d="M0 14 L-13 -4 Q0 -16 13 -4 Z" fill="#FFB8A8" stroke="#E08974" stroke-width="2" stroke-linejoin="round"/><path d="M0 14 L-6 -8 M0 14 L0 -10 M0 14 L6 -8" stroke="#E08974" stroke-width="1.6"/></g>`;
+    `<g class="o-shell" transform="translate(${x} ${y}) scale(${s})"><path d="M0 14 L-13 -4 Q0 -16 13 -4 Z" fill="url(#sc-shell)" stroke="#E08974" stroke-width="2" stroke-linejoin="round"/><path d="M0 14 L-6 -8 M0 14 L0 -10 M0 14 L6 -8" stroke="#E08974" stroke-width="1.6"/></g>`;
   const bigHeart = (x, y, s) => `<g class="o-heldheart">${heartAt(x, y, s)}<path transform="translate(${x} ${y}) scale(${s})" d="M-4 -6 q-3 1 -3 4" fill="none" stroke="#fff" stroke-width="1.4" opacity=".7" stroke-linecap="round"/></g>`;
   // Drawn before the head, so the head's chin sits on top of it (no gap).
   const scarf = `<g class="o-scarf">
-      <path d="M48 130 Q100 174 152 130 L149 148 Q100 190 51 148 Z" fill="${C.scarf}"/>
+      <path d="M48 130 Q100 174 152 130 L149 148 Q100 190 51 148 Z" fill="url(#ol-scarf)"/>
       <path d="M51 148 Q100 190 149 148" fill="none" stroke="${C.scarfDk}" stroke-width="2"/>
       <circle cx="74" cy="160" r="2.8" fill="${C.dot}"/><circle cx="100" cy="166" r="2.8" fill="${C.dot}"/><circle cx="126" cy="160" r="2.8" fill="${C.dot}"/>
-      <path d="M128 160 L142 188 L124 183 Z" fill="${C.scarf}"/><path d="M128 160 L142 188" stroke="${C.scarfDk}" stroke-width="1.5"/></g>`;
+      <path d="M128 160 L142 188 L124 183 Z" fill="url(#ol-scarf)"/><path d="M128 160 L142 188" stroke="${C.scarfDk}" stroke-width="1.5"/></g>`;
 
   function otter(m, pose = "down", extras = "", { droop = false } = {}) {
     const front = pose === "hold" || pose === "hug";
     const ear = (x, r) => `<g class="o-ear" ${droop ? `transform="translate(${r > 0 ? 3 : -3} 13)"` : ""}>
-        <circle cx="${x}" cy="54" r="13" fill="${C.fur}"/><circle cx="${x}" cy="55" r="6.5" fill="${C.earIn}"/></g>`;
+        <circle cx="${x}" cy="54" r="13" fill="${F}"/><circle cx="${x}" cy="55" r="6.5" fill="url(#ol-ear)"/></g>`;
     return `
-      <ellipse cx="100" cy="214" rx="54" ry="5.5" fill="#000" opacity=".08"/>
-      <g class="o-tail"><path d="M116 206 C140 214 172 210 186 194 C191 188 186 180 179 184 C164 194 140 196 118 192 Z" fill="${C.furDk}"/>
+      <ellipse cx="100" cy="214" rx="56" ry="6" fill="#3B2416" opacity=".13"/>
+      <g class="o-tail"><path d="M116 206 C140 214 172 210 186 194 C191 188 186 180 179 184 C164 194 140 196 118 192 Z" fill="${FD}"/>
         <path d="M128 202 C148 205 166 201 178 191" fill="none" stroke="${C.fur}" stroke-width="3" stroke-linecap="round" opacity=".5"/></g>
       ${pose === "up" || pose === "wave" ? arms(pose) : ""}
-      <path d="M56 176 C54 140 146 140 144 176 C146 210 54 210 56 176 Z" fill="${C.fur}"/>
-      <ellipse cx="100" cy="182" rx="28" ry="24" fill="${C.cream}"/>
-      <ellipse cx="80" cy="207" rx="15" ry="8" fill="${C.furDk}"/><ellipse cx="120" cy="207" rx="15" ry="8" fill="${C.furDk}"/>
+      <path d="M56 176 C54 140 146 140 144 176 C146 210 54 210 56 176 Z" fill="${F}"/>
+      <ellipse cx="100" cy="182" rx="28" ry="24" fill="${CR}"/>
+      <ellipse cx="80" cy="207" rx="15" ry="8" fill="${FD}"/><ellipse cx="120" cy="207" rx="15" ry="8" fill="${FD}"/>
       <g fill="${C.earIn}"><circle cx="74" cy="206" r="2"/><circle cx="80" cy="203.5" r="2"/><circle cx="86" cy="206" r="2"/><circle cx="114" cy="206" r="2"/><circle cx="120" cy="203.5" r="2"/><circle cx="126" cy="206" r="2"/></g>
       ${scarf}
       ${!front && pose !== "up" && pose !== "wave" ? arms(pose) : ""}
       ${pose === "hug" ? arms(pose) + extras : front ? extras + arms(pose) : extras}
+      <ellipse cx="100" cy="148" rx="48" ry="9" fill="#3B2416" opacity=".16"/>
       ${ear(44, -28)}${ear(156, 28)}
-      <ellipse cx="100" cy="92" rx="66" ry="60" fill="${C.fur}"/>
-      <ellipse cx="86" cy="52" rx="24" ry="10" fill="${C.furLt}" opacity=".55" transform="rotate(-12 86 52)"/>
-      <path d="M90 34 q4 -12 9 -2 q5 -12 10 1" fill="${C.fur}" stroke="${C.furDk}" stroke-width="2" stroke-linejoin="round"/>
+      <ellipse cx="100" cy="92" rx="67" ry="61" fill="${F}"/>
+      <ellipse cx="78" cy="50" rx="22" ry="8" fill="#fff" opacity=".13" transform="rotate(-16 78 50)"/>
+      <path d="M90 34 q4 -12 9 -2 q5 -12 10 1" fill="${C.furLt}" stroke="${C.furDk}" stroke-width="2" stroke-linejoin="round"/>
       ${face(m)}`;
   }
   const sparkles = `<g class="o-sparkles">
@@ -160,25 +203,101 @@ window.Art = (function () {
   const MOTION = { cheer: "jump", star: "jump", clap: "jump", love: "sway-soft", hug: "squish", happy: "nod", wave: "nod", encourage: "nod", sad: "sway", worried: "shiver" };
 
   /* ------------------------------ tricks ------------------------------ */
-  const TRICKS = [
-    { id: "juggle", title: "Shell juggling" },
-    { id: "slide",  title: "Belly slide" },
-    { id: "spin",   title: "Twirl" },
-    { id: "float",  title: "River float" },
-    { id: "dance",  title: "Happy dance" }
+  // Break scenes follow the two chapters (river words, then sky words).
+  // Every version gets the same five scenes, drawn the same way; the Ollie
+  // versions add Ollie to the scene, so the only difference is Ollie.
+  const SCENES = [
+    { id: "juggle",  title: "Shell juggle",    ch: "river" },
+    { id: "leap",    title: "Fish leap",       ch: "river" },
+    { id: "moon",    title: "Moonlight float", ch: "river" },
+    { id: "sunrise", title: "Sunrise",         ch: "sky" },
+    { id: "boat",    title: "Boat ride",       ch: "sky" }
   ];
-  const NEUTRAL = [
-    { id: "bubbles", title: "Bubbles" },
-    { id: "boat",    title: "Paper boat" },
-    { id: "spiral",  title: "Shell spiral" },
-    { id: "ripples", title: "Ripples" },
-    { id: "stars",   title: "Starlight" }
-  ];
+  const TRICKS = SCENES, NEUTRAL = SCENES;
   const water = (y = 226) => `<g><ellipse cx="120" cy="${y}" rx="140" ry="26" fill="${C.water}"/>
       <path class="a-wave" d="M-20 ${y - 4} q15 -8 30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0" fill="none" stroke="${C.waterLine}" stroke-width="3" stroke-linecap="round"/></g>`;
   const at = (x, y, s, inner) => `<g transform="translate(${x} ${y}) scale(${s})">${inner}</g>`;
 
+  /* ---- scene pieces ---- */
+  const cloud = (x, y, s, cls = "") => `<g class="${cls}"><g transform="translate(${x} ${y}) scale(${s})"><path d="M-30 12 Q-44 12 -42 0 Q-40 -12 -26 -10 Q-22 -28 -2 -26 Q16 -26 20 -12 Q38 -14 40 2 Q42 12 28 12 Z" fill="url(#sc-cloud)"/><path d="M-26 4 Q-16 -2 -6 4" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".9"/></g></g>`;
+  const bird = (x, y, s, cls = "") => `<g class="${cls}"><g transform="translate(${x} ${y}) scale(${s})"><ellipse cx="0" cy="0" rx="9" ry="6" fill="#4FA3D9"/><circle cx="8" cy="-4" r="4.5" fill="#4FA3D9"/><path d="M12 -4 L17 -3 L12 -1 Z" fill="#F2A93B"/><circle cx="9" cy="-5" r="1.1" fill="#1E2A30"/>
+      <g class="a-flap"><path d="M-3 -2 Q-8 -16 -16 -12 Q-10 -6 -3 -2 Z" fill="#7CC0EA"/></g></g></g>`;
+  const fishShape = `<g><path d="M-22 0 Q-4 -16 16 0 Q-4 16 -22 0 Z" fill="url(#sc-fish)"/><path d="M14 0 L28 -11 L25 0 L28 11 Z" fill="#EC8526"/><circle cx="-12" cy="-3" r="2.6" fill="#24343A"/><circle cx="-12.8" cy="-3.8" r=".9" fill="#fff"/><path d="M-4 -8 Q0 0 -4 8" fill="none" stroke="#fff" stroke-width="2" opacity=".5" stroke-linecap="round"/></g>`;
+  const leafShape = `<g><path d="M-26 6 Q-22 -16 24 -12 Q20 12 -26 6 Z" fill="url(#sc-leaf)"/><path d="M-24 5 Q0 -2 22 -10" fill="none" stroke="#fff" stroke-width="2" opacity=".55" stroke-linecap="round"/></g>`;
+  const waves = (y, col, op = .9) => `<path class="a-wave" d="M-20 ${y} q15 -7 30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" opacity="${op}"/>`;
+  const riverBg = (night = false) => night
+    ? `<rect width="240" height="250" fill="url(#sc-night)"/>
+       <g class="a-stars">${[[30, 30], [70, 60], [110, 24], [150, 48], [210, 22], [24, 96], [196, 92], [128, 82]].map(([x, y], i) => `<g class="a-twinkle" style="animation-delay:${(i * .37).toFixed(2)}s;transform-origin:${x}px ${y}px">${starAt(x, y, 3 + (i % 3), "#FFF3B8")}</g>`).join("")}</g>
+       <circle cx="184" cy="56" r="44" fill="url(#sc-glow)"/><circle cx="184" cy="56" r="22" fill="url(#sc-moon)"/><circle cx="177" cy="50" r="4" fill="#E9C55A" opacity=".45"/><circle cx="192" cy="62" r="3" fill="#E9C55A" opacity=".4"/>
+       <rect x="0" y="168" width="240" height="82" fill="url(#sc-waterN)"/>
+       <g class="a-shimmer" fill="#F6DE86">${[178, 190, 202, 214].map((y, i) => `<ellipse cx="184" cy="${y}" rx="${18 - i * 3}" ry="2.2" opacity="${.7 - i * .12}"/>`).join("")}</g>
+       ${waves(176, "#7FA6C6", .7)}`
+    : `<rect width="240" height="250" fill="url(#sc-day)"/>
+       <path d="M-10 172 Q40 120 100 160 Q150 128 250 168 L250 180 L-10 180 Z" fill="url(#sc-hill2)"/>
+       ${cloud(54, 46, .7, "a-cloud")}${cloud(178, 30, .5, "a-cloud slow")}
+       <rect x="0" y="168" width="240" height="82" fill="url(#sc-water)"/>
+       ${waves(176, "#fff", .8)}${waves(206, "#6FC0CE", .6).replace("a-wave", "a-wave rev")}`;
+  const front = (y, night) => `<rect x="0" y="${y}" width="240" height="${250 - y}" fill="url(#${night ? "sc-waterN" : "sc-water"})" opacity=".94"/>${waves(y + 4, night ? "#7FA6C6" : "#fff", .75)}`;
+  const ring = (x, y, d) => `<ellipse class="a-ripple" style="animation-delay:${d}s;transform-origin:${x}px ${y}px" cx="${x}" cy="${y}" rx="14" ry="4" fill="none" stroke="#fff" stroke-width="2.5"/>`;
+
+  function scene(id, withOllie) {
+    const O = withOllie;
+    let inner = "", label = "";
+    switch (id) {
+      case "juggle":
+        label = "Shells juggling over the river";
+        inner = riverBg()
+          + (O ? at(48, 74, .72, otter("joy", "up")) + front(196) : `${ring(120, 196, 0)}${ring(120, 196, 1.4)}`)
+          + `<g class="a-orbit" style="transform-origin:120px ${O ? 52 : 108}px">${smallShell(120, O ? 18 : 64, O ? 1 : 1.5)}${smallShell(O ? 150 : 162, O ? 70 : 132, O ? 1 : 1.5)}${smallShell(O ? 90 : 78, O ? 70 : 132, O ? 1 : 1.5)}</g>`
+          + (O ? "" : front(200));
+        break;
+      case "leap":
+        label = "A fish leaping over the river";
+        inner = riverBg()
+          + (O ? `<g class="a-bob">${at(70, 112, .5, otter("star", "up"))}</g>` : "")
+          + `<g class="a-leap" style="transform-origin:20px 196px"><g transform="translate(20 196) scale(-1 1)">${fishShape}</g></g>`
+          + front(198) + ring(28, 200, 0) + ring(214, 200, 1.1)
+          + `<g class="a-drops" fill="#fff">${[[30, 188], [38, 184], [206, 186], [218, 182]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.5"/>`).join("")}</g>`;
+        break;
+      case "moon":
+        label = "Floating under the moon";
+        inner = riverBg(true)
+          + `<g class="a-bob" style="transform-origin:${O ? 120 : 110}px 200px">${O
+              ? at(74, 108, .46, otter("content", "hold", smallShell(100, 174, 1.6))) + `<g transform="translate(150 200)">${leafShape}</g>`
+              : `<g transform="translate(110 192) scale(1.6)">${leafShape}</g>${smallShell(112, 178, 1.3)}`}</g>`
+          + front(204, true);
+        break;
+      case "sunrise":
+        label = "The sun rising over the hills";
+        inner = `<rect width="240" height="250" fill="url(#sc-dawn)"/>
+          <g class="a-sunrise" style="transform-origin:120px 170px"><circle cx="120" cy="150" r="60" fill="url(#sc-glow)"/><circle cx="120" cy="150" r="30" fill="url(#sc-sun)"/></g>
+          ${cloud(46, 70, .62, "a-cloud")}${cloud(196, 52, .5, "a-cloud slow")}
+          <g class="a-fly">${bird(-20, 96, 1)}${bird(-48, 112, .8)}</g>
+          <path d="M-10 190 Q50 140 120 176 Q180 146 250 186 L250 250 L-10 250 Z" fill="url(#sc-hill2)"/>
+          <path d="M-10 214 Q70 176 150 206 Q200 190 250 206 L250 250 L-10 250 Z" fill="url(#sc-hill)"/>`
+          + (O ? at(116, 112, .54, otter("happy", "wave")) : `<g class="a-sway" style="transform-origin:60px 214px"><path d="M60 214 L60 192" stroke="#3B9150" stroke-width="3"/><circle cx="60" cy="188" r="6" fill="#FFCB4D"/><circle cx="60" cy="188" r="2.5" fill="#E58A2B"/></g>
+              <g class="a-sway slow" style="transform-origin:176px 212px"><path d="M176 212 L176 194" stroke="#3B9150" stroke-width="3"/><circle cx="176" cy="190" r="5" fill="#F59AA5"/><circle cx="176" cy="190" r="2" fill="#fff"/></g>`);
+        break;
+      case "boat": {
+        label = "A little boat sailing at sunset";
+        const boat = `<g class="a-rock" style="transform-origin:0px 6px">
+            <path d="M-16 0 L-16 -58" stroke="#8A5A3A" stroke-width="3" stroke-linecap="round"/><path d="M-18 -56 L-18 -8 L-50 -8 Z" fill="url(#sc-boat)" stroke="#9FBFCC" stroke-width="1.5" stroke-linejoin="round"/>
+            ${O ? at(-10, -60, .32, otter("joy", "up")) : smallShell(20, -10, 1.2)}
+            <path d="M-46 -2 L46 -2 L34 16 L-34 16 Z" fill="url(#sc-hull)"/><path d="M-40 4 L40 4" stroke="#fff" stroke-width="2" opacity=".45"/></g>`;
+        inner = `<rect width="240" height="250" fill="url(#sc-dusk)"/>
+          <circle cx="60" cy="150" r="46" fill="url(#sc-glow)"/><circle cx="60" cy="150" r="22" fill="url(#sc-sun)" opacity=".9"/>
+          ${cloud(170, 54, .55, "a-cloud")}
+          <rect x="0" y="168" width="240" height="82" fill="url(#sc-water)"/>${waves(178, "#fff", .7)}
+          <g class="a-sail2"><g transform="translate(-60 182)">${boat}</g>${bird(-40, 104, .8, "a-follow")}</g>
+          ${front(206)}`;
+        break;
+      }
+    }
+    return `<svg class="anim-svg clip scene" viewBox="0 0 240 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}${O ? ", with Ollie" : ""}">${inner}</svg>`;
+  }
+
   function trick(id) {
+    if (SCENES.some(x => x.id === id)) return scene(id, true);
     let inner;
     switch (id) {
       case "juggle":
@@ -208,6 +327,7 @@ window.Art = (function () {
     return `<svg class="anim-svg" viewBox="0 0 240 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${id === "giftWe" ? "A shell" : "Ollie"}">${inner}</svg>`;
   }
   function neutralAnim(id) {
+    if (SCENES.some(x => x.id === id)) return scene(id, false);
     let inner = "";
     const bg = `<rect x="0" y="0" width="240" height="250" rx="24" fill="#E3F2F3"/>`;
     switch (id) {
@@ -254,5 +374,5 @@ window.Art = (function () {
     <path d="M8 24 q4 -4 8 0 t8 0 t8 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
     <path d="M20 21 L12 11 Q20 4 28 11 Z" fill="#F2B544"/></svg>`;
 
-  return { ollie, MOTION, trick, neutralAnim, TRICKS, NEUTRAL, icon, logo, heartAt };
+  return { ollie, MOTION, trick, neutralAnim, scene, SCENES, TRICKS, NEUTRAL, icon, logo, heartAt, ensureDefs };
 })();

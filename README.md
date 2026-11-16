@@ -21,15 +21,15 @@ Streak, shells, session goal, lessons, practice modes, help and timing are the s
 
 ## Participant journey
 1. **Eligibility** (3 questions). Ineligible students see the alternative-assignment message.
-2. **Consent** (replace the placeholder in `config.js`).
+2. **Consent** (shows IRB ID 26-404; consent text lives in `config.js`).
 3. **Nickname + study code.** The nickname is only used on screen and is never sent anywhere. The study code links the app data to Qualtrics.
 4. **Random assignment** (permuted blocks of 4 on the server).
 5. **Onboarding** (3 cards) and a 4-step tour.
-6. **Home** is the hub: lesson map on one side; Ollie (or a message panel), the session goal, three practice modes and a break on the other.
-   - **10 lessons**, each unlocking the next, plus 2 "coming soon". The first run of a lesson is always the **full** lesson. Finished lessons can be reviewed as a **quick review** (about half the questions) or **full** again, for the same credit. Help appears only in first runs, not in reviews or practice.
+6. **Home** is the hub: the lesson map in the middle (two chapters: River words, Sky words; hovering a lesson shows what it teaches, how long it takes and how to unlock it), and one column on the right with Ollie (or a message panel), the Finish checklist, the shell jar, and practice (session goal, three modes, a break).
+   - **10 lessons**, each unlocking the next, plus 2 "coming soon". The first run of a lesson is always the **full** lesson. Finished lessons can be reviewed as a **quick review** (about half the questions) or **full** again, for the same credit. In first runs only, a **💡 Hint** button beside Check gives a clue, and **Help** opens an app guide (this question, word list, Finish, shells and streak). Reviews and practice have neither. If a first run scores under 60%, the completion screen suggests (never requires) a quick review.
    - **Practice**: "Watch and read" / "Watch Ollie explain" (passive), "Quick review" (easy), "Weak words" (active). Same credit.
    - **Session goal** after every lesson: one practice round keeps the streak.
-   - **Shells and streak mean something:** shells fill a jar that unlocks the next trick (Ollie) or animation (no Ollie); a streak of 3 or more lessons/rounds in a row doubles the shells for every correct answer.
+   - **Shells and streak mean something:** shells fill a jar that unlocks the next break scene. The five scenes follow the chapters (Shell juggle, Fish leap, Moonlight float, Sunrise, Boat ride) and are drawn the same in every version; the Ollie versions add Ollie to the scene. Scenes can be picked by tapping them; a streak of 3 or more lessons/rounds in a row doubles the shells for every correct answer.
    - Messages during lessons (halfway nudge, 5 in a row, coming back) appear in the right-hand panel: Ollie says them in the Ollie versions; a message card shows them otherwise.
    - **Leaving** a lesson or practice round (✕) shows that version's prompt, then goes back home. It resets the streak in every version (onboarding says so). Only **Finish** ends the session.
 7. **Timing.** The clock starts with Lesson 1. **Finish unlocks only when Lessons 1–6 are done and 20 minutes of practice have passed with the tab visible** (time in another tab doesn't count). A timer card on home and a chip in every lesson show what is left ("2 lessons and 8 min"). When both are met, two questions appear (how much do you **want** / **feel you should** keep practicing, 1–7); answering them unlocks Finish. From then on staying is a free choice (continued system use). A warning comes at 28 minutes and the app moves to the survey at **30 minutes** (wall clock), whether or not Finish was unlocked.
@@ -112,7 +112,7 @@ After editing wording in `config.js`, run `node tests/make_conditions_doc.js` to
 | `prompts_shown`, `prompt_continues`, `final_choice`, `seconds_after_first_prompt` | responses to leave and finish prompts |
 | `nudges_shown`, `ollie_pops`, `max_stage` | exposure dose; highest guilt stage reached |
 | `choices` | everything they chose, in order, e.g. `L1f>L2q>leave-L2>P-passive>L2f>break>finish` |
-| `help_opens`, `coach_views`, `max_combo`, `max_streak` | help use, best runs |
+| `help_opens`, `hint_opens`, `redo_suggested`, `coach_views`, `max_combo`, `max_streak` | help and hint use, review suggestions, best runs |
 | `active_seconds`, `idle_seconds`, `hidden_seconds` | attention: input in the last 30 s / no input / tab in background |
 | `survey_opened`, `survey_done` | reached and finished Qualtrics |
 
@@ -131,7 +131,8 @@ After editing wording in `config.js`, run `node tests/make_conditions_doc.js` to
 | `finish_locked_click`, `finish_unlocked`, `time_warning`, `time_up` | timing |
 | `round_start`, `round_complete`, `round_abandoned` | lesson or practice details |
 | `break_start`, `break_end`, `unlock` | break item, watch_ms |
-| `coach_view`, `help_open`, `help_tab`, `help_close` | dwell_ms |
+| `coach_view`, `help_open`, `help_tab`, `help_close` | where (home/lesson), dwell_ms |
+| `hint_open`, `redo_suggested`, `redo_suggest_choice`, `locked_node_click` | item, after_ms / lesson, acc / choice |
 | `tab_hidden`, `tab_visible`, `session_end`, `survey_opened`, `survey_done` | |
 
 ## Mapping the model to the data

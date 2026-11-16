@@ -44,7 +44,7 @@ window.STUDY_CONFIG = {
     <p>No problem. You can earn the same extra credit by completing the
     alternative assignment described in your Canvas announcement.</p>`,
   consentHtml: `
-    <p><strong>[Placeholder: replace with your IRB-approved consent text.]</strong></p>
+    <p class="irb-id">Iowa State University IRB ID: 26-404</p>
     <p>You are invited to take part in a research study about learning a new
     language with an app. You will use a short language app, answer survey
     questions, and take a short quiz. The app part lasts 20 to 30 minutes, and
@@ -57,10 +57,11 @@ window.STUDY_CONFIG = {
   shellsPerPractice: 5,
   comboEvery: 5,               // pop-up after every 5 correct in a row
   streakBonusAt: 3,            // streak of 3+ lessons/rounds in a row ...
-  streakBonusMult: 2,          // ... doubles the shells for every correct answer
+  streakBonusMult: 2,
+  redoSuggestBelow: 60,        // after a first run under this accuracy (%), suggest a review (never required)          // ... doubles the shells for every correct answer
 
   // Break items unlock as shells are collected (cosmetic only).
-  unlockAt: [0, 30, 70, 120, 180],
+  unlockAt: [0, 20, 45, 75, 110],
 
   /* ---- Session timing ------------------------------------------------------
      The clock starts when Lesson 1 starts. Finish stays locked until BOTH

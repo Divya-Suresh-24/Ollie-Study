@@ -37,7 +37,7 @@ ${row("Leave / Finish prompt picture", "none", "Ollie talking or waving", "none"
 ${row("Home after leaving early", "neutral line", "happy Ollie, neutral line", "guilt line", "sad Ollie, guilt line")}
 ${row("Coming back", "“Welcome back.”", "waving Ollie", "“Yay, you're back! We missed you!”", "Ollie hugs a heart: “I missed you!”")}
 ${row("Passive practice", "Watch and read", "Watch Ollie explain", "Watch and read", "Watch Ollie explain")}
-${row("Break", "animations", "Ollie plays (juggle, belly slide, twirl, float, dance)", "animations", "Ollie plays")}
+${row("Break", "5 chapter scenes (river, then sky)", "same 5 scenes with Ollie in them", "5 chapter scenes", "same 5 scenes with Ollie in them")}
 
 Identical in every version: the 10 lessons (full the first time; quick review or full on a replay), streak and shells (a streak of ${C.streakBonusAt}+ doubles shells; shells unlock tricks or animations), session goal, three practice modes and their credit, Help, the Finish lock (Lesson ${C.coreLessons} done and ${C.finishUnlockMinutes} minutes of practice with the tab visible), the two motive questions shown just before Finish unlocks, the ${C.sessionMinutes}-minute end, the two interest questions after consent, the lock messages (“${C.finishUnlocked}”), and the prompt buttons (“${C.buttons.leave.stay}” / “${C.buttons.leave.go}” and “${C.buttons.finish.stay}” / “${C.buttons.finish.go}”). Leaving a lesson or round early resets the streak in every version, and onboarding says so in every version.
 

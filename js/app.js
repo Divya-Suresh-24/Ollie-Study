@@ -99,7 +99,7 @@
       reactance: { leaves: 0, leavesFast: 0, guiltShown: 0, guiltLeaves: 0, guiltLeavesFast: 0 },
       goal: { active: false, shown: 0, met: 0 }, lastAct: null, nudges: 0, pops: 0,
       leftEarly: false, leaves: { prompts: 0, stayed: 0, left: 0 }, returns: 0, maxStage: 0,
-      breaks: { n: 0, ms: 0 }, help: { opens: 0 }, coachSeen: {}, coachViews: 0, lockedClicks: 0,
+      breaks: { n: 0, ms: 0 }, help: { opens: 0, hints: 0 }, coachSeen: {}, coachViews: 0, lockedClicks: 0,
       prompts: { shown: 0, continues: 0, firstAt: null, lastChoice: null },
       choices: [], msgIdx: {}, tourDone: false,
       ended: false, endReason: null, endedAt: null, surveyOpened: false, surveyDone: false
@@ -138,7 +138,7 @@
       guilt_prompts_shown: S.reactance.guiltShown, guilt_prompt_leaves: S.reactance.guiltLeaves, guilt_prompt_leaves_fast: S.reactance.guiltLeavesFast,
       finish_locked_clicks: S.lockedClicks,
       breaks_taken: S.breaks.n, break_seconds: Math.round(S.breaks.ms / 1000),
-      help_opens: S.help.opens, coach_views: S.coachViews,
+      help_opens: S.help.opens, hint_opens: S.help.hints || 0, redo_suggested: S.redoSug || 0, coach_views: S.coachViews,
       prompts_shown: S.prompts.shown, prompt_continues: S.prompts.continues, final_choice: S.prompts.lastChoice || "",
       first_prompt_at: S.prompts.firstAt || "", seconds_after_first_prompt: S.prompts.firstAt ? secs(S.prompts.firstAt, S.endedAt) : "",
       choices: S.choices.join(">"),
@@ -214,21 +214,39 @@
     if (finishLocked()) return { icon: "🔒", text: `Finish unlocks after Lesson ${CORE} and ${Math.round(T.unlock)} minutes of practice. Still to go: ${todoText()}.`, pct, open: false };
     return { icon: "🏁", text: "Finish is open. Stop whenever you like.", pct: 100, open: true };
   }
-  function timerCard() {
-    const t = timerText();
-    return `<section class="timer-card ${t.open ? "open" : ""}" id="timer-card"><span class="tc-i">${t.icon}</span><div class="tc-body"><div class="tc-text">${esc(t.text)}</div><div class="tc-bar"><i style="width:${t.pct}%"></i></div></div></section>`;
+  // Finish card: a two-item checklist, so it is clear that both are needed.
+  function finishCardInner() {
+    if (!finishLocked()) return `<div class="fc-h"><span>🏁</span><b>Finish is open</b></div><p class="fc-sub">Stop whenever you like.</p>`;
+    if (S.unlockReadyAt) return `<div class="fc-h"><span>🔒</span><b>Almost there</b></div><p class="fc-sub">Answer two quick questions to unlock Finish.</p>`;
+    const done = CORE - coreLeft(), lOk = coreDone();
+    const mLeft = S.clockStart ? minsLeftToUnlock() : Math.round(T.unlock), mOk = !!S.clockStart && mLeft === 0;
+    const mPct = S.clockStart ? Math.min(100, Math.round(visibleMin() / T.unlock * 100)) : 0;
+    const row = (ok, title, sub, pct) => `<li class="${ok ? "ok" : ""}"><span class="fc-box" aria-hidden="true">${ok ? "✓" : ""}</span>
+        <span class="fc-t"><b>${title}</b><small>${sub}</small><i class="fc-bar"><i style="width:${ok ? 100 : pct}%"></i></i></span></li>`;
+    return `<div class="fc-h"><span>🔒</span><b>Finish unlocks when both are done</b></div>
+      <ul class="fc-list">
+        ${row(lOk, `Finish Lesson ${CORE}`, lOk ? "Done" : `${done} of ${CORE} lessons done`, done / CORE * 100)}
+        ${row(mOk, `${Math.round(T.unlock)} minutes of practice`, !S.clockStart ? "The timer starts with Lesson 1" : mOk ? "Done" : `${mLeft} min to go`, mPct)}
+      </ul>`;
+  }
+  function timerCard() { return `<section class="finish-card ${finishLocked() ? "" : "open"}" id="timer-card">${finishCardInner()}</section>`; }
+  function chipText() {
+    if (!finishLocked()) return "🏁 Finish open";
+    if (S.unlockReadyAt) return "🔒 Finish: 2 quick questions";
+    const lOk = coreDone(), m = S.clockStart ? minsLeftToUnlock() : Math.round(T.unlock);
+    return `🔒 Finish: Lesson ${CORE} ${lOk ? "✓" : "○"} · ${m ? m + " min" : "time ✓"}`;
   }
   function updateFinishBtn() {
     const tc = document.getElementById("timer-card");
-    if (tc) { const t = timerText(); tc.classList.toggle("open", t.open); tc.querySelector(".tc-i").textContent = t.icon; tc.querySelector(".tc-text").textContent = t.text; tc.querySelector(".tc-bar i").style.width = t.pct + "%"; }
+    if (tc) { const h = finishCardInner(); if (tc._h !== h) { tc._h = h; tc.innerHTML = h; } tc.classList.toggle("open", !finishLocked()); }
     const lt = document.getElementById("ls-timer");
-    if (lt) { const open = !finishLocked(); lt.classList.toggle("open", open); lt.textContent = open ? "🏁 Finish open" : `🔒 Finish: ${todoText()}`; }
+    if (lt) { lt.classList.toggle("open", !finishLocked()); lt.textContent = chipText(); }
     const b = document.getElementById("btn-finish");
     if (!b) return;
     const locked = finishLocked();
     b.classList.toggle("locked", locked);
     b.title = locked ? `Unlocks after Lesson ${CORE} and ${Math.round(T.unlock)} minutes of practice` : "End your session";
-    b.innerHTML = locked ? `<span aria-hidden="true">🔒</span> Finish <small>${esc(todoText())}</small>` : "Finish";
+    b.innerHTML = locked ? `<span aria-hidden="true">🔒</span> Finish <small>${esc(chipText().replace(/^🔒 Finish: /, ""))}</small>` : "Finish";
   }
   function timeWarning() {
     const m = pick("warn");
@@ -330,7 +348,7 @@
       toast(`<span class="toast-ico">🔓</span><span>New ${mascot() ? "trick" : "animation"} unlocked: <b>${esc(item.title)}</b></span>`, "unlock");
     }
   }
-  const breakItems = () => (mascot() ? Art.TRICKS : Art.NEUTRAL);
+  const breakItems = () => Art.SCENES;
   const unlockedItems = () => breakItems().slice(0, Math.max(1, S.unlockedN));
   function streakUp() {
     const was = bonusOn();
@@ -554,7 +572,7 @@
   }
 
   /* -------------------------------- header ----------------------------- */
-  function header() {
+  function header(help = false) {
     return `<header class="topbar">
       <div class="brand small">${Art.logo}<span>Pelan</span></div>
       <div class="stats">
@@ -562,7 +580,7 @@
         <span class="stat" id="stat-shells" title="Shells: collect them to unlock ${mascot() ? "Ollie's tricks" : "animations"}">🐚 <b>${S.shells}</b></span>
         <span class="stat soft" title="Lessons">📘 <b>${lessonsDone()}/${NL}</b></span>
       </div>
-      <button class="btn-finish" id="btn-finish">Finish</button></header>`;
+      <div class="top-actions">${help ? `<button class="help-btn" id="home-help" aria-label="Help">?<span>Help</span></button>` : ""}<button class="btn-finish" id="btn-finish">Finish</button></div></header>`;
   }
   function wireHeader(context) {
     const b = $app.querySelector("#btn-finish");
@@ -589,44 +607,52 @@
       Log.log(S.goal.active ? "goal_shown" : "goal_met_shown", { context, text: g.text, kind: g.kind, streak: S.streak });
       goalHtml = `<div class="goal ${S.goal.active ? "" : "met"}"><span class="goal-i">${S.goal.active ? "🎯" : "✅"}</span><span>${esc(g.text)}</span></div>`;
     }
-    const offsets = [0, -70, -30, 50, 74, 20, -60, -80, -20, 50, 10, -50];
+    const offsets = [0, -60, -24, 40, 64, 16, -50, -70, -16, 44, 10, -44];
     const credit = `+${CFG.shellsPerPractice} 🐚 +1 🔥`;
     const modes = MODES();
+    const node = (L, i) => {
+      const st = S.lessons[L.n].done ? "done" : L.n === nxt ? "current" : "locked";
+      const words = L.items.filter(x => x.type === "intro").map(x => `${x.word} (${x.en})`);
+      const fN = L.items.filter(x => x.type !== "intro" && x.type !== "rule").length;
+      const status = st === "done" ? "✓ Done · tap to review" : st === "current" ? "Up next · tap to start" : `🔒 Finish Lesson ${L.n - 1} to unlock`;
+      return `<button class="node ${st}" id="node-${L.n}" data-n="${L.n}" style="--x:${offsets[i]}px" ${st === "locked" ? 'aria-disabled="true"' : ""} aria-describedby="np-${L.n}" aria-label="Lesson ${L.n}: ${esc(L.title)}${st === "locked" ? " (locked)" : st === "done" ? " (completed, tap to review)" : ""}">
+          <span class="node-c">${st === "done" ? "✓" : st === "locked" ? "🔒" : L.n}</span>
+          <span class="node-l"><b>Lesson ${L.n}</b><small>${esc(L.title)}</small></span>
+          <span class="node-pop" id="np-${L.n}" role="tooltip"><b>Lesson ${L.n} · ${esc(L.title)}</b><span>${esc(L.goal)}</span>
+            ${words.length ? `<span class="np-words">New words: ${esc(words.join(", "))}</span>` : ""}
+            <span class="np-meta">${fN} questions · about 3 min</span><span class="np-st ${st}">${status}</span></span></button>`;
+    };
+    const chapter = (k, icon, title, sub) => `<div class="chapter"><span class="ch-i">${icon}</span><span><b>Chapter ${k} · ${title}</b><small>${sub}</small></span></div>`;
     $app.innerHTML = `
       <div class="page wide">
-        ${header()}
+        ${header(true)}
         <div class="home-grid">
-          <aside class="side-col">
-            <section class="companion ${guilt() && m && m.kind ? "pressure" : ""}">
-              ${mascot() ? `<div class="companion-art">${ollieArt(m ? m.mood : "wave", "play big")}</div>` : `<div class="companion-icon">${Art.logo}</div>`}
-              <div class="companion-text">${esc(m ? m.text : firstLine)}</div>
-            </section>
-            ${goalHtml}
-            ${timerCard()}
-            ${shellJar()}
-            ${done ? `
-            <section class="panel">
-              <h2 class="panel-h">Practice <small>every option earns the same</small></h2>
-              <div class="modes">${modes.map(md => `<button class="mode" data-mode="${md.id}"><span class="mode-i">${md.icon}</span><b>${md.title}</b><small>${md.sub}</small><span class="credit">${credit}</span></button>`).join("")}</div>
-            </section>
-            <button class="act" id="home-break"><span class="act-i">${mascot() ? "🦦" : "🌊"}</span><span><b>Take a break</b><small>${mascot() ? "Watch Ollie play" : "Watch a short animation"}</small></span></button>` : ""}
-          </aside>
           <main class="map-col">
             <section class="unit">
               <div><div class="unit-k">Unit 1</div><div class="unit-t">River and sky</div></div>
               <div class="unit-prog"><div class="unit-bar"><i style="width:${(done / NL) * 100}%"></i></div><span>${done} of ${NL} lessons</span></div>
             </section>
             <div class="path">
-              ${P.lessons.map((L, i) => {
-                const st = S.lessons[L.n].done ? "done" : L.n === nxt ? "current" : "locked";
-                return `<button class="node ${st}" id="node-${L.n}" data-n="${L.n}" style="--x:${offsets[i]}px" ${st === "locked" ? "disabled" : ""} aria-label="Lesson ${L.n}: ${esc(L.title)}${st === "locked" ? " (locked)" : st === "done" ? " (completed, tap to review)" : ""}">
-                  <span class="node-c">${st === "done" ? "✓" : st === "locked" ? "🔒" : L.n}</span>
-                  <span class="node-l"><b>Lesson ${L.n}</b><small>${esc(L.title)}${st === "done" ? " · review" : ""}</small></span></button>`;
-              }).join("")}
-              ${P.comingSoon.map((t, k) => `<button class="node soon" disabled style="--x:${offsets[NL + k]}px" aria-label="Lesson ${NL + k + 1}: ${esc(t)} (coming soon)">
+              ${P.lessons.map((L, i) => (L.n === 1 ? chapter(1, "🌊", "River words", "Lessons 1–6") : L.n === 7 ? chapter(2, "☁️", "Sky words", "Lessons 7–10") : "") + node(L, i)).join("")}
+              ${P.comingSoon.map((t, k) => `<button class="node soon" aria-disabled="true" style="--x:${offsets[NL + k]}px" aria-label="Lesson ${NL + k + 1}: ${esc(t)} (coming soon)">
                   <span class="node-c">🔒</span><span class="node-l"><b>Lesson ${NL + k + 1}</b><small>${esc(t)} · coming soon</small></span></button>`).join("")}
             </div>
           </main>
+          <aside class="side-col">
+            <section class="companion ${guilt() && m && m.kind ? "pressure" : ""}">
+              ${mascot() ? `<div class="companion-art">${ollieArt(m ? m.mood : "wave", "play big")}</div>` : `<div class="companion-icon">${Art.logo}</div>`}
+              <div class="companion-text">${esc(m ? m.text : firstLine)}</div>
+            </section>
+            ${timerCard()}
+            ${shellJar()}
+            ${done ? `
+            <section class="panel practice">
+              <h2 class="panel-h">Practice <small>each earns ${credit}</small></h2>
+              ${goalHtml}
+              <div class="modes">${modes.map(md => `<button class="mode" data-mode="${md.id}"><span class="mode-i">${md.icon}</span><span class="mode-t"><b>${md.title}</b><small>${md.sub}</small></span><span class="credit">${credit}</span></button>`).join("")}</div>
+              <button class="act" id="home-break"><span class="act-i">${mascot() ? "🦦" : "🌅"}</span><span><b>Take a break</b><small>${mascot() ? "Watch Ollie play" : "Watch a short animation"}</small></span></button>
+            </section>` : ""}
+          </aside>
         </div>
       </div>`;
     wireHeader("home");
@@ -638,6 +664,8 @@
     });
     const hb = $app.querySelector("#home-break");
     if (hb) hb.onclick = () => { Log.log("choice_made", { context, choice: "break" }); S.choices.push("break"); save(); screenBreak(context); };
+    const hh = $app.querySelector("#home-help"); if (hh) hh.onclick = () => openHelp(null);
+    $app.querySelectorAll(".node.locked").forEach(b => b.onclick = () => { Log.log("locked_node_click", { lesson: +b.dataset.n }); b.classList.remove("nudge"); void b.offsetWidth; b.classList.add("nudge"); });
     if (!S.tourDone) setTimeout(runTour, 300);
   }
   // Shell jar: what shells are for (next unlock) and what the streak does.
@@ -676,7 +704,7 @@
     const steps = [
       { t: "#node-1", text: "This is your <b>lesson map</b>. Start with Lesson 1. Each lesson you finish unlocks the next one." },
       { t: ".stats", text: "Your <b>streak</b> 🔥, <b>shells</b> 🐚 and lessons show up here." },
-      { t: "#btn-finish", text: `<b>Finish</b> unlocks after ${CFG.finishUnlockMinutes} minutes of practice. Then you can stop whenever you like.` },
+      { t: "#timer-card", text: `<b>Finish</b> unlocks when <b>both</b> are done: Lesson ${CORE} and ${CFG.finishUnlockMinutes} minutes of practice. This card ticks each one off.` },
       { t: "#node-1", text: "That's it. Tap <b>Lesson 1</b> to begin." }
     ];
     let i = 0, tStep = now();
@@ -760,15 +788,15 @@
 
   /* ---------------------------- round runner --------------------------- */
   const TYPES = {
-    intro:     { label: "New word",          tone: "river", how: "Look at the picture and read the new word. Then press Continue." },
-    rule:      { label: "Grammar tip",       tone: "amber", how: "Read the tip and the examples. Then press Continue." },
-    pick_pic:  { label: "Pick the picture",  tone: "amber", how: "Tap the picture that matches the Pelan word. Then press Check." },
-    pick_text: { label: "Choose the answer", tone: "plum",  how: "Tap the right answer from the list. Then press Check." },
-    match:     { label: "Match the pairs",   tone: "rose",  how: "Tap a Pelan word on the left, then tap its meaning on the right. Matched pairs fade out. Match them all to finish." },
-    build:     { label: "Build the phrase",  tone: "kelp",  how: "Tap the word tiles in the right order to build the phrase. Tap a tile again to take it back. Then press Check." },
-    type:      { label: "Type it",           tone: "ink",   how: "Type the answer in Pelan with your keyboard. Then press Check or Enter." },
-    judge:     { label: "Right or wrong?",   tone: "coral", how: "Read the Pelan phrase. Is it correct for the meaning shown? Tap Yes or No, then press Check." },
-    explain:   { label: "Watch and read",    tone: "river", how: "Sit back and read along. Each card moves on by itself, or tap Next." }
+    intro:     { label: "New word",          icon: "✨", tone: "river", how: "Look at the picture and read the new word. Then press Continue." },
+    rule:      { label: "Grammar tip",       icon: "📖", tone: "amber", how: "Read the tip and the examples. Then press Continue." },
+    pick_pic:  { label: "Pick the picture",  icon: "🖼️", tone: "amber", how: "Tap the picture that matches the Pelan word. Then press Check." },
+    pick_text: { label: "Choose the answer", icon: "☑️", tone: "plum",  how: "Tap the right answer from the list. Then press Check." },
+    match:     { label: "Match the pairs",   icon: "🔗", tone: "rose",  how: "Tap a Pelan word on the left, then tap its meaning on the right. Matched pairs fade out. Match them all to finish." },
+    build:     { label: "Build the phrase",  icon: "🧩", tone: "kelp",  how: "Tap the word tiles in the right order to build the phrase. Tap a tile again to take it back. Then press Check." },
+    type:      { label: "Type it",           icon: "⌨️", tone: "ink",   how: "Type the answer in Pelan with your keyboard. Then press Check or Enter." },
+    judge:     { label: "Right or wrong?",   icon: "⚖️", tone: "coral", how: "Read the Pelan phrase. Is it correct for the meaning shown? Tap Yes or No, then press Check." },
+    explain:   { label: "Watch and read",    icon: "📺", tone: "river", how: "Sit back and read along. Each card moves on by itself, or tap Next." }
   };
   const COACH = ["pick_pic", "pick_text", "match", "build", "type", "judge"];
 
@@ -817,12 +845,13 @@
         <div class="lesson-stats">
           <span class="stat streak-chip ${bonusOn() ? "hot" : ""}" id="ls-streak" title="Streak">🔥 <b>${S.streak}</b>${bonusOn() ? `<em>${CFG.streakBonusMult}× 🐚</em>` : ""}</span>
           <span class="stat" id="ls-shells" title="Shells">🐚 <b>${S.shells}</b></span>
-          <span class="stat timer-chip ${finishLocked() ? "" : "open"}" id="ls-timer">${finishLocked() ? `🔒 Finish: ${esc(todoText())}` : "🏁 Finish open"}</span>
+          <span class="stat timer-chip ${finishLocked() ? "" : "open"}" id="ls-timer">${esc(chipText())}</span>
         </div>
         <div class="lesson-grid">
           <section class="lesson-main">
             <div class="type-row">
-              <div class="type-tag tone-${T.tone}"><b>${T.label}</b><span>${T.how.split(". ")[0]}.</span></div>
+              <div class="type-tag qpill tone-${T.tone}"><span class="qp-i" aria-hidden="true">${T.icon}</span><b>${T.label}</b></div>
+              <span class="qp-how">${T.how.split(". ")[0]}.</span>
               <div class="combo ${S.combo >= 2 ? "on" : ""}" id="combo">🔥 ${S.combo} in a row</div>
             </div>
             <div class="lesson-body" id="body"></div>
@@ -849,12 +878,29 @@
       return;
     }
     if (view.auto) { view.onDone = res => grade(it, res, tShown); return; }
-    bar.innerHTML = `<div class="fb-inner">${helpAllowed() && it.hint ? `<span class="fb-hint">Need a hint? Tap Help.</span>` : ""}<button class="btn btn-primary btn-cta" id="check" disabled>Check</button></div>`;
+    const hint = helpAllowed() ? hintFor(it) : "";
+    bar.innerHTML = `<div class="fb-inner">${hint ? `<button class="btn-hint" id="hint" type="button">💡 Hint</button>` : "<span></span>"}<button class="btn btn-primary btn-cta" id="check" disabled>Check</button></div>`;
     const $check = bar.querySelector("#check");
+    const $hint = bar.querySelector("#hint");
+    if ($hint) $hint.onclick = () => {
+      S.help.hints = (S.help.hints || 0) + 1; save();
+      Log.log("hint_open", { round: R.id, item: it.id, type: it.type, after_ms: ms(tShown) });
+      $hint.outerHTML = `<span class="hint-text" role="status">💡 ${esc(hint)}</span>`;
+    };
     view.onChange = ready => { $check.disabled = !ready; };
     $check.onclick = () => grade(it, view.result(), tShown);
   }
-  // Help only in a lesson's first run (not in reviews or practice rounds).
+  // A clue for this question. Uses the item's own hint, or a general one by type.
+  function hintFor(it) {
+    if (it.hint) return it.hint;
+    const a = typeof it.answer === "string" ? it.answer : "";
+    if (it.type === "type") return a.includes(" ") ? "Thing-word first, then the describing word. It copies the ending." : `It starts with “${a[0]}”.`;
+    if (it.type === "build") return "Thing-word first, then the describing word. It copies the ending (-a or -o).";
+    if (it.type === "judge") return "Check the order and the ending: -a goes with -a, -o goes with -o.";
+    if (it.type === "pick_text" && it.big) return `Think back to the picture that went with “${it.big}”.`;
+    return "";
+  }
+  // Hint and Help only in a lesson's first run (not in reviews or practice rounds).
   const helpAllowed = () => R && R.kind === "lesson" && !R.redo;
   // Check button and feedback sit right under the answers.
   function feedbackBar() { const f = $app.querySelector("#foot"); f.className = "foot"; return f; }
@@ -926,7 +972,7 @@
     sheet.className = "overlay";
     sheet.innerHTML = `
       <div class="sheet coach" role="dialog" aria-modal="true" aria-labelledby="coach-t">
-        <div class="type-tag tone-${T.tone}"><b>${T.label}</b><span>New kind of question</span></div>
+        <div class="type-tag qpill tone-${T.tone}"><span class="qp-i" aria-hidden="true">${T.icon}</span><b>${T.label}</b><em class="qp-new">New</em></div>
         <h2 class="h2" id="coach-t">How this works</h2>
         ${speaker(esc(T.how), "talk", "compact")}
         ${demo(type)}
@@ -946,39 +992,50 @@
       default: return "";
     }
   }
+  // App guide: word list, how Finish unlocks, shells and streak, and (in a
+  // lesson) how to answer this kind of question. Clues live in the Hint button.
   function openHelp(it) {
     if ($modal.querySelector(".help")) return;
-    const T = TYPES[it.type], t0 = now();
+    const TY = it ? TYPES[it.type] : null, t0 = now(), where = it ? "lesson" : "home";
     S.help.opens++; save();
-    Log.log("help_open", { round: R && R.id, item: it.id, type: it.type });
+    Log.log("help_open", { where, round: R && R.id, item: it && it.id, type: it && it.type });
     const gl = P.glossary(R && R.kind === "lesson" ? R.n - 1 : lessonsDone());
+    const tabs = [["words", "Word list"], ["finish", "Finish"], ["shells", "Shells & streak"]];
+    if (TY) tabs.unshift(["how", "This question"]);
+    const what = mascot() ? "one of Ollie's break scenes" : "a break scene";
     const sheet = document.createElement("div");
     sheet.className = "overlay";
     sheet.innerHTML = `
       <div class="sheet help" role="dialog" aria-modal="true" aria-labelledby="help-t">
         <div class="sheet-head"><h2 class="h2" id="help-t">Help</h2><button class="x-btn" id="help-x" aria-label="Close help">✕</button></div>
-        <div class="tabs" role="tablist">
-          <button role="tab" class="tab on" data-tab="how">How to answer</button>
-          <button role="tab" class="tab" data-tab="words">Word list</button>
-        </div>
-        <div class="tab-body" data-body="how">
-          <div class="type-tag tone-${T.tone}"><b>${T.label}</b></div>
-          ${speaker(esc(T.how) + (it.hint ? `<br><br>Hint: ${esc(it.hint)}` : ""), "think", "compact")}
-          <p class="muted">Pelan rule: describing words come <b>after</b> the thing-word and copy its ending (-a or -o).</p>
-        </div>
-        <div class="tab-body" data-body="words" hidden>
-          <ul class="gloss-list">${gl.map(g => `<li>${Art.icon(g.pic)}<b>${esc(g.word)}</b><span>${esc(g.en)}</span></li>`).join("")}</ul>
-        </div>
-        <button class="btn btn-primary" id="help-ok">Back to the question</button>
+        <div class="tabs" role="tablist">${tabs.map(([k, l], i) => `<button role="tab" class="tab ${i ? "" : "on"}" data-tab="${k}">${l}</button>`).join("")}</div>
+        ${TY ? `<div class="tab-body" data-body="how">
+          <div class="type-tag qpill tone-${TY.tone}"><span class="qp-i" aria-hidden="true">${TY.icon}</span><b>${TY.label}</b></div>
+          ${speaker(esc(TY.how), "think", "compact")}
+          <p class="muted">Stuck? Tap <b>💡 Hint</b> next to Check for a clue.</p></div>` : ""}
+        <div class="tab-body" data-body="words" ${TY ? "hidden" : ""}>
+          ${gl.length ? `<ul class="gloss-list">${gl.map(g => `<li>${Art.icon(g.pic)}<b>${esc(g.word)}</b><span>${esc(g.en)}</span></li>`).join("")}</ul>` : `<p class="muted">Words appear here after Lesson 1.</p>`}
+          <p class="muted">Pelan rule: describing words come <b>after</b> the thing-word and copy its ending (-a or -o).</p></div>
+        <div class="tab-body" data-body="finish" hidden>
+          <div class="finish-card in-help">${finishCardInner()}</div>
+          <p class="muted">The timer counts only while this page is open. When Finish unlocks you can stop whenever you like. The app closes after ${Math.round(T.end)} minutes.</p></div>
+        <div class="tab-body" data-body="shells" hidden>
+          <ul class="help-facts">
+            <li>🐚 <b>Shells:</b> ${CFG.shellsPerCorrect} for each correct answer, ${CFG.shellsPerLesson} for each lesson, ${CFG.shellsPerPractice} for each practice round.</li>
+            <li>🫙 Shells fill your jar. Each full jar unlocks ${what}.</li>
+            <li>🔥 <b>Streak:</b> lessons and practice rounds finished in a row. Leaving one early resets it.</li>
+            <li>✨ A streak of ${CFG.streakBonusAt} or more doubles the shells for every correct answer.</li>
+          </ul></div>
+        <button class="btn btn-primary" id="help-ok">${it ? "Back to the question" : "Close"}</button>
       </div>`;
     $modal.appendChild(sheet);
-    const close = () => { Log.log("help_close", { item: it.id, dwell_ms: ms(t0) }); sheet.remove(); };
+    const close = () => { Log.log("help_close", { where, item: it && it.id, dwell_ms: ms(t0) }); sheet.remove(); };
     sheet.querySelector("#help-x").onclick = close;
     sheet.querySelector("#help-ok").onclick = close;
     sheet.querySelectorAll(".tab").forEach(b => b.onclick = () => {
       sheet.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === b));
       sheet.querySelectorAll(".tab-body").forEach(x => { x.hidden = x.dataset.body !== b.dataset.tab; });
-      Log.log("help_tab", { tab: b.dataset.tab, item: it.id });
+      Log.log("help_tab", { where, tab: b.dataset.tab, item: it && it.id });
     });
   }
 
@@ -1006,6 +1063,9 @@
     const acc = r.graded ? Math.round((r.correct / r.graded) * 100) : 100;
     const secs = Math.round((Date.now() - r.t0) / 1000), mm = Math.floor(secs / 60), ss = String(secs % 60).padStart(2, "0");
     const g = pick("gift", { gift: CFG.shellsPerLesson });
+    // Same in every version: after a hard first run, suggest (never require) a review.
+    const suggest = !r.redo && r.graded > 0 && acc < (CFG.redoSuggestBelow || 60);
+    if (suggest) { S.redoSug = (S.redoSug || 0) + 1; save(); Log.log("redo_suggested", { lesson: r.n, acc }); }
     Log.log("gift_shown", { lesson: r.n, text: g.text, ollie: mascot() });
     const hero = mascot()
       ? `<div class="celebrate"><div class="cel-gift solo hop">${Art.trick("gift")}</div></div>`
@@ -1022,10 +1082,14 @@
           <div class="tile-stat shells"><span>Shells</span><b>+${r.shells} 🐚</b></div>
           <div class="tile-stat streak"><span>Streak</span><b>🔥 ${S.streak}</b></div>
         </div>
-        <button class="btn btn-primary" id="cont">Continue</button>
+        ${suggest ? `<div class="redo-note"><span>💪</span><span>That one was tricky. A quick review can help the words stick.</span></div>
+        <div class="btn-row two"><button class="btn btn-quiet" id="review-now">Review it now</button><button class="btn btn-primary" id="cont">Continue</button></div>`
+                  : `<button class="btn btn-primary" id="cont">Continue</button>`}
       </div></div>`;
     confetti();
-    $app.querySelector("#cont").onclick = () => screenHome(nextLesson() ? "between" : "allDone");
+    $app.querySelector("#cont").onclick = () => { if (suggest) Log.log("redo_suggest_choice", { lesson: r.n, choice: "continue" }); screenHome(nextLesson() ? "between" : "allDone"); };
+    const rv = $app.querySelector("#review-now");
+    if (rv) rv.onclick = () => { Log.log("redo_suggest_choice", { lesson: r.n, choice: "review" }); screenHome(nextLesson() ? "between" : "allDone"); lessonStartDialog(r.n); };
   }
   function confetti() {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -1079,22 +1143,24 @@
   }
 
   /* ------------------------------ break ------------------------------ */
-  function screenBreak(from, prevId) {
+  function screenBreak(from, prevId, pickId) {
     screen("break");
     clearFeedbackBar();
     const items = unlockedItems(), pool = items.length > 1 ? items.filter(x => x.id !== prevId) : items;
-    const item = pool[rnd(pool.length)], all = breakItems(), t0 = now();
+    const item = (pickId && items.find(x => x.id === pickId)) || pool[rnd(pool.length)], all = breakItems(), t0 = now();
     S.breaks.n++; S.lastAct = "break"; save();
-    Log.log("break_start", { item: item.id, from, unlocked: items.length });
+    Log.log("break_start", { item: item.id, from, picked: !!pickId, unlocked: items.length });
+    const chip = (x, k) => k < S.unlockedN
+      ? `<button class="coll have ${x.id === item.id ? "on" : ""}" data-id="${x.id}" aria-pressed="${x.id === item.id}"><span aria-hidden="true">${x.ch === "sky" ? "☁️" : "🌊"}</span> ${esc(x.title)}</button>`
+      : `<span class="coll" title="Unlocks at ${CFG.unlockAt[k]} shells">🔒 ${esc(x.title)} · ${CFG.unlockAt[k]} 🐚</span>`;
     $app.innerHTML = `
       <div class="page wide">
         ${header()}
         <div class="card center break-card">
-          <h1 class="h1">${mascot() ? `Ollie's ${esc(item.title.toLowerCase())}!` : esc(item.title)}</h1>
+          <div class="break-k">${item.ch === "sky" ? "☁️ Chapter 2 · Sky" : "🌊 Chapter 1 · River"}</div>
+          <h1 class="h1">${esc(item.title)}</h1>
           <div class="stage">${mascot() ? Art.trick(item.id) : Art.neutralAnim(item.id)}</div>
-          <div class="collection" aria-label="Collection">
-            ${all.map((x, k) => `<span class="coll ${k < S.unlockedN ? "have" : ""}" title="${esc(x.title)}">${k < S.unlockedN ? esc(x.title) : `🔒 ${CFG.unlockAt[k]} 🐚`}</span>`).join("")}
-          </div>
+          <div class="collection" aria-label="Your scenes">${all.map(chip).join("")}</div>
           <div class="btn-row two">
             ${items.length > 1 ? `<button class="btn btn-quiet" id="again">Watch another</button>` : ""}
             <button class="btn btn-primary" id="back">Back to home</button>
@@ -1108,6 +1174,7 @@
     $app.querySelector("#back").onclick = () => { end("back"); screenHome("break"); };
     const ag = $app.querySelector("#again");
     if (ag) ag.onclick = () => { end("another"); S.choices.push("break"); screenBreak("again", item.id); };
+    $app.querySelectorAll(".coll.have").forEach(c => c.onclick = () => { if (c.dataset.id === item.id) return; end("pick"); S.choices.push("break"); screenBreak("pick", item.id, c.dataset.id); });
   }
 
   /* ----------------------------- exercises ----------------------------- */

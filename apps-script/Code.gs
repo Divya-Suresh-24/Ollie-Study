@@ -45,7 +45,9 @@ const HEADERS = {
     "visible_app_minutes", "visible_minutes_after_unlock", "rounds_after_unlock", "answers_after_unlock",
     "core_done", "core_done_at", "unlock_ready_at", "sl1_want", "sl2_should", "motive_rt_ms", "in1", "in2",
     "tab_hides", "prompt_leaves", "prompt_leaves_fast", "guilt_prompts_shown", "guilt_prompt_leaves",
-    "guilt_prompt_leaves_fast", "user_agent", "updated_at"
+    "guilt_prompt_leaves_fast",
+    // v6: hint button and review suggestion
+    "hint_opens", "redo_suggested", "user_agent", "updated_at"
   ]
 };
 

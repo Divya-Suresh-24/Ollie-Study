@@ -1,3 +1,21 @@
+# What changed in v6
+
+From the second pilot (Nov 16).
+
+- **Consent** shows IRB ID 26-404.
+- **Question labels:** each question type is a small icon label (⌨️ Type it, 🔗 Match the pairs, …). The label stands out; the instruction is one quiet line next to it. New types get a "New" badge on the how-it-works card.
+- **Hint and Help are separate.** In a lesson's first run, **💡 Hint** sits beside Check and gives a clue for that question (logged as `hint_open`). **Help** is now an app guide: this question, word list, how Finish unlocks, shells and streak. It's on home and in first-run lessons; reviews and practice have neither.
+- **Hard lesson → review suggested.** If a first run scores under 60%, the completion screen offers "Review it now" next to Continue (same in every version; logged). Reviews earn the same as before, so the quick-vs-full choice stays measurable.
+- **Ollie is cuter and rounder:** soft shading on fur, scarf, eyes and nose; bigger, glossier eyes; shiny cheeks; a soft shadow under his head.
+- **Breaks follow the chapters.** Five scenes, the same in every version: Shell juggle, Fish leap, Moonlight float (river chapter), Sunrise, Boat ride (sky chapter). The Ollie versions add Ollie to the same scene, so the scene quality is equal and the only difference is Ollie. Tap any unlocked scene to play it.
+- **Home is calmer:** the lesson path is in the middle with Chapter 1 · River words and Chapter 2 · Sky words; everything else is one column on the right (Ollie, Finish, shells, practice). The goal now sits inside Practice.
+- **Lesson hover cards:** hovering (or tabbing to) a lesson shows what it teaches, its new words, how many questions, and how to unlock it.
+- **Finish is a checklist:** "Finish unlocks when both are done" with ☐ Finish Lesson 6 and ☐ 20 minutes of practice, each ticking off on its own. The header and lesson chip use the same wording.
+- **Data:** new session columns `hint_opens`, `redo_suggested` (the Apps Script archives the old tab automatically when columns change; redeploy `Code.gs`).
+- **Checklist:** 62 checks per version, all passing.
+
+---
+
 # What changed in v5.1
 
 From the first pilot run (Oct 31) and Alec's comments.

@@ -99,7 +99,9 @@ async def run(g):
         M = cfg["messages"][sp["framing"]]
         for q in ["age18", "enrolled"]: await pg.check(f"input[name={q}][value=yes]", force=True)
         await pg.check("input[name=repeat][value=no]", force=True)
-        await pg.click("#go"); await pg.click("#agree")
+        await pg.click("#go")
+        check("consent shows the IRB ID (26-404)", "IRB ID: 26-404" in await pg.inner_text("body"))
+        await pg.click("#agree")
         await pg.check("input[name=in1][value='6']", force=True); await pg.check("input[name=in2][value='5']", force=True); await pg.click("#go")
         await pg.fill("#nick", "Tester"); await pg.click("#start"); await pg.wait_for_timeout(200)
         st = await pg.evaluate("window.__pelan.state()")
@@ -117,11 +119,20 @@ async def run(g):
 
         # Lesson 1: quick/full choice, wrong answer reaction, stage-0 nudge
         check("Finish timer card visible on home", bool(await pg.query_selector("#timer-card")))
+        check("Finish card is a two-item checklist (Lesson 6 + 20 minutes)", len(await pg.query_selector_all("#timer-card .fc-list li")) == 2)
+        check("every lesson has a hover card with its details", len(await pg.query_selector_all(".node-pop")) == 10)
+        await pg.hover("#node-3"); await pg.wait_for_timeout(250)
+        check("hovering a locked lesson says how to unlock it", "Finish Lesson 2 to unlock" in await pg.inner_text("#np-3") and await pg.is_visible("#np-3"))
+        check("lesson map grouped into two chapters", len(await pg.query_selector_all(".chapter")) == 2)
+        await pg.click("#home-help"); await pg.wait_for_timeout(150)
+        check("Help on home: word list, Finish and shells guide", len(await pg.query_selector_all(".help .tab")) == 3)
+        await pg.click("#help-ok")
         check("shell jar shows the next unlock and the streak bonus", bool(await pg.query_selector(".jar-card .jar-streak")))
         await pg.click("#node-1"); await pg.wait_for_timeout(200)
         check("first run: full lesson only (no quick option)", not await pg.query_selector('.len[data-len="quick"]') and bool(await pg.query_selector(".len-go")))
         await pg.click(".len-go"); await pg.wait_for_timeout(300)
         check("Help and Finish timer shown in a first-run lesson", bool(await pg.query_selector("#btn-help")) and bool(await pg.query_selector("#ls-timer")))
+        check("question type shown as an icon label", bool(await pg.query_selector(".type-tag.qpill .qp-i")))
         seen = {}
         async def on_graded(pg, wrong):
             if wrong and "wrong" not in seen:
@@ -187,7 +198,7 @@ async def run(g):
         ret = [json.loads(e["data"]) for e in await events(pg) if e["event"] == "return_shown"]
         check("coming back shows this version's return line", ret and matches(ret[-1]["text"], M["return"], sp["mascot"]), ret[-1]["text"] if ret else "none")
         check("passive mode hosted by Ollie" if sp["mascot"] else "passive mode without Ollie", (await pg.inner_text(".type-tag b")).startswith("Watch Ollie") == sp["mascot"])
-        check("no Help in practice rounds", not await pg.query_selector("#btn-help"))
+        check("no Help or Hint in practice rounds", not await pg.query_selector("#btn-help") and not await pg.query_selector("#hint"))
         shown = await pg.query_selector("#side-ollie .side-bubble.said") if sp["mascot"] else await pg.query_selector("#sp-msg:not([hidden])")
         check("return line shown in the right-hand panel" + (" by Ollie" if sp["mascot"] else ""), bool(shown))
         while not await pg.query_selector(".complete-card"):
@@ -199,6 +210,7 @@ async def run(g):
         await pg.click("#node-2"); await pg.click(".len-go"); await pg.wait_for_timeout(300)
         combo = {}
         async def watch_combo(pg, wrong):
+            if "hint" not in combo and await pg.query_selector(".hint-text"): combo["hint"] = True
             if "x" in combo: return
             el = await pg.query_selector(".ollie-pop, .toast")
             ev = [e for e in await events(pg) if e["event"] == "combo_pop"]
@@ -208,6 +220,17 @@ async def run(g):
                 el = await pg.query_selector("#side-ollie .side-bubble.said") if sp["mascot"] else await pg.query_selector("#sp-msg:not([hidden])")
                 check("5 in a row: Ollie celebrates in the side panel" if sp["mascot"] else "5 in a row: message card in the side panel", bool(el))
                 await pg.screenshot(path=f"{SHOTS}/v{g}_combo.png")
+        # Hint: open it on the first typing question
+        while True:
+            it = await item(pg)
+            if it["type"] == "type": break
+            t = await answer(pg)
+            if t not in ("intro", "rule", "explain", "match"): await watch_combo(pg, False); await pg.click("#cont")
+            await pg.wait_for_timeout(40)
+        if await pg.query_selector("#coach-ok"): await pg.click("#coach-ok"); await pg.wait_for_timeout(100)
+        hb = await pg.query_selector("#hint")
+        if hb: await hb.click(); await pg.wait_for_timeout(100)
+        check("Hint beside Check in a first-run lesson gives a clue", bool(hb) and bool(await pg.query_selector(".hint-text")))
         await play_round(pg, on_graded=watch_combo)
         if "x" not in combo: check("5-in-a-row pop appeared", False)
         await pg.click("#cont"); await pg.wait_for_timeout(300)
@@ -218,10 +241,22 @@ async def run(g):
         check("review offers quick or full with the same credit", len(credits) == 2 and credits[0] == credits[1])
         await pg.click('.len[data-len="quick"]'); await pg.wait_for_timeout(300)
         check("no Help in a review", not await pg.query_selector("#btn-help"))
+        check("no Hint in a review", not await pg.query_selector("#hint"))
         await play_round(pg)
         await pg.click("#cont"); await pg.wait_for_timeout(300)
         st = await pg.evaluate("window.__pelan.state()")
         check("streak of 3 turns on 2× shells (shown in the header)", st["streak"] >= 3 and "2×" in (await pg.inner_text("#stat-streak")), f"streak {st['streak']}")
+
+        # Breaks: same chapter scenes in every version; Ollie only in his versions; chips are clickable
+        await pg.evaluate("(()=>{const s=window.__pelan.state(); s.shellsTotal=500; s.unlockedN=5;})()")
+        await pg.click("#home-break"); await pg.wait_for_timeout(250)
+        chips = [await c.get_attribute("data-id") for c in await pg.query_selector_all(".coll.have")]
+        check("break scenes follow the chapters (same 5 in every version)", chips == ["juggle", "leap", "moon", "sunrise", "boat"], str(chips))
+        await pg.click('.coll.have[data-id="sunrise"]'); await pg.wait_for_timeout(250)
+        check("tapping a scene plays it", "Sunrise" in await pg.inner_text(".break-card h1"))
+        check("Ollie in the break scene" if sp["mascot"] else "no Ollie in the break scene", bool(await pg.query_selector(".stage .scene .o-tail")) == sp["mascot"])
+        await pg.screenshot(path=f"{SHOTS}/v{g}_break.png")
+        await pg.click("#back"); await pg.wait_for_timeout(250)
 
         # 21 minutes, but 15 of them in another tab, and core lessons not done → still locked
         await pg.evaluate("(()=>{const S=window.__pelan.state(); S.clockStart -= 21*60000; S.hid.push([S.clockStart+60000, S.clockStart+16*60000]);})()")

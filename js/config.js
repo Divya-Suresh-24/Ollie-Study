@@ -61,7 +61,7 @@ window.STUDY_CONFIG = {
   redoSuggestBelow: 60,        // after a first run under this accuracy (%), suggest a review (never required)          // ... doubles the shells for every correct answer
 
   // Break items unlock as shells are collected (cosmetic only).
-  unlockAt: [0, 30, 70, 120, 180],
+  unlockAt: [0, 20, 45, 75, 110],
 
   /* ---- Session timing ------------------------------------------------------
      The clock starts when Lesson 1 starts. Finish stays locked until BOTH

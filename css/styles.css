@@ -798,3 +798,14 @@ button.coll.have:hover { background: #fff; }
   .scene *, .a-leap, .a-sail2, .a-fly { animation: none !important; }
 }
 .foot .fb-inner { justify-content: space-between; }
+
+/* ======================= v6.1 ======================= */
+.tip { position: fixed; z-index: 2000; max-width: 280px; background: #13343B; color: #fff; font-size: 14.5px; line-height: 1.4; padding: 9px 12px; border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(19,52,59,.25); pointer-events: none; opacity: 0; transform: translateY(-3px); transition: opacity .12s, transform .12s; }
+.tip.on { opacity: 1; transform: none; }
+.lesson-start { position: relative; }
+.sheet-x { position: absolute; top: 14px; right: 14px; }
+.lesson-start .ls-head { padding-right: 36px; }
+.opt.ruled-out, .tile.ruled-out { opacity: .38; text-decoration: line-through; filter: grayscale(1); cursor: not-allowed; }
+.tile.ruled-out::after { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 3px; background: #9AAAB0; transform: rotate(-20deg); border-radius: 2px; }
+.foot .fb-inner .foot-note { margin-left: auto; }

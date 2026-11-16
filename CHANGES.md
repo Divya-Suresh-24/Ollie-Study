@@ -12,7 +12,15 @@ From the second pilot (Nov 16).
 - **Lesson hover cards:** hovering (or tabbing to) a lesson shows what it teaches, its new words, how many questions, and how to unlock it.
 - **Finish is a checklist:** "Finish unlocks when both are done" with ☐ Finish Lesson 6 and ☐ 20 minutes of practice, each ticking off on its own. The header and lesson chip use the same wording.
 - **Data:** new session columns `hint_opens`, `redo_suggested` (the Apps Script archives the old tab automatically when columns change; redeploy `Code.gs`).
-- **Checklist:** 62 checks per version, all passing.
+- **v6.1 (same day):**
+  - Fish leaps the right way (head first).
+  - Break scenes are cheaper: 20, 45, 75, 110 shells (was 30, 70, 120, 180).
+  - Ollie says something new on every question and never repeats the same line twice in a row; in the text versions the message card clears on each new question.
+  - Match questions have 5 pairs at most (four lessons had 6).
+  - Hover tips on streak, shells, lessons, Help, Finish, the goal, each practice mode and the break.
+  - Lesson start: no time estimates (just the question count and reward); ✕ in the corner (or clicking outside) goes back to the map.
+  - Every question has a Hint: choice questions cross out one wrong answer, matches show one pair, typing and building give a clue.
+- **Checklist:** 66 checks per version, all passing.
 
 ---
 

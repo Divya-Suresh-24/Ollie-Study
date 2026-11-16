@@ -61,8 +61,8 @@ window.PELAN = (function () {
         { id: "L2-03", type: "pick_text", prompt: "What does this word mean?", big: "kelo", options: ["leaf", "shell", "moon"], answer: "shell" },
         { id: "L2-04", type: "type", prompt: "Type the Pelan word for “fish”", pics: [W("mira")], answer: "mira", hint: "It starts with m." },
         { id: "L2-05", type: "pick_pic", prompt: "Which one is “tavo”?", options: [o("suna"), o("kelo"), o("tavo"), o("bino")], answer: "tavo" },
-        { id: "L2-06", type: "match", pairs: [["mira", "fish"], ["pela", "river"], ["tavo", "stone"], ["kelo", "shell"], ["suna", "moon"], ["bino", "leaf"]],
-          rightOrder: ["stone", "moon", "fish", "leaf", "river", "shell"] },
+        { id: "L2-06", type: "match", pairs: [["mira", "fish"], ["pela", "river"], ["tavo", "stone"], ["kelo", "shell"], ["suna", "moon"]],
+          rightOrder: ["stone", "moon", "fish", "river", "shell"] },
         { id: "L2-07", type: "pick_text", prompt: "How do you say “river” in Pelan?", options: ["pela", "mira", "bino", "kelo"], answer: "pela" },
         { id: "L2-08", type: "type", prompt: "Type the Pelan word for “leaf”", pics: [W("bino")], answer: "bino", hint: "It starts with b." },
         { id: "L2-09", type: "pick_text", prompt: "What does this word mean?", big: "mira", options: ["moon", "fish", "stone"], answer: "fish" },
@@ -140,8 +140,8 @@ window.PELAN = (function () {
         { id: "L6-07", type: "judge", phrase: "kelo rusa", en: "red shell", answer: false, explain: "“kelo” ends in -o, so it is “kelo ruso”." },
         { id: "L6-08", type: "build", en: "red leaf", bank: ["bino", "ruso", "rusa", "kelo"], answer: "bino ruso" },
         { id: "L6-09", type: "type", prompt: "Type “small shell” in Pelan", pics: [W("kelo", "small")], answer: "kelo tipo", hint: "“kelo” ends in -o." },
-        { id: "L6-10", type: "match", pairs: [["pela", "river"], ["bino tipo", "small leaf"], ["mira rusa", "red fish"], ["suna vela", "big moon"], ["tavo", "stone"], ["kelo ruso", "red shell"]],
-          rightOrder: ["big moon", "stone", "red shell", "river", "small leaf", "red fish"] }
+        { id: "L6-10", type: "match", pairs: [["pela", "river"], ["bino tipo", "small leaf"], ["mira rusa", "red fish"], ["suna vela", "big moon"], ["kelo ruso", "red shell"]],
+          rightOrder: ["big moon", "red shell", "river", "small leaf", "red fish"] }
       ] },
 
     { n: 7, title: "Sky words", goal: "Meet four new words from the sky.", teaches: "sky",
@@ -167,8 +167,8 @@ window.PELAN = (function () {
         { id: "L8-03", type: "pick_text", prompt: "What does this word mean?", big: "vira", options: ["fish", "bird", "boat"], answer: "bird" },
         { id: "L8-04", type: "pick_text", prompt: "How do you say “boat” in Pelan?", options: ["lido", "tavo", "vira"], answer: "lido" },
         { id: "L8-05", type: "pick_pic", prompt: "Which one is “sola”?", options: [o("suna"), o("sola"), o("kelo")], answer: "sola" },
-        { id: "L8-06", type: "match", pairs: [["sola", "sun"], ["suna", "moon"], ["vira", "bird"], ["mira", "fish"], ["lido", "boat"], ["bino", "leaf"]],
-          rightOrder: ["fish", "boat", "sun", "leaf", "bird", "moon"] },
+        { id: "L8-06", type: "match", pairs: [["sola", "sun"], ["suna", "moon"], ["vira", "bird"], ["mira", "fish"], ["lido", "boat"]],
+          rightOrder: ["fish", "boat", "sun", "bird", "moon"] },
         { id: "L8-07", type: "type", prompt: "Type the Pelan word for “bird”", pics: [W("vira")], answer: "vira", hint: "It starts with v." },
         { id: "L8-08", type: "pick_text", prompt: "Which word ends in -o?", options: ["vira", "nubo", "sola"], answer: "nubo" },
         { id: "L8-09", type: "type", prompt: "Type the Pelan word for “cloud”", pics: [W("nubo")], answer: "nubo", hint: "It starts with n." },
@@ -203,8 +203,8 @@ window.PELAN = (function () {
         { id: "L10-07", type: "judge", phrase: "mira rusa", en: "red fish", answer: true, explain: "“mira” ends in -a, so “rusa” is right." },
         { id: "L10-08", type: "build", en: "big boat", bank: ["lido", "vela", "velo", "nubo"], answer: "lido velo" },
         { id: "L10-09", type: "pick_text", prompt: "How do you say “red bird” in Pelan?", options: ["vira rusa", "vira ruso", "rusa vira"], answer: "vira rusa" },
-        { id: "L10-10", type: "match", pairs: [["mira vela", "big fish"], ["nubo tipo", "small cloud"], ["tavo nilo", "blue stone"], ["sola vela", "big sun"], ["kelo tipo", "small shell"], ["vira rusa", "red bird"]],
-          rightOrder: ["blue stone", "red bird", "big fish", "small shell", "big sun", "small cloud"] }
+        { id: "L10-10", type: "match", pairs: [["mira vela", "big fish"], ["nubo tipo", "small cloud"], ["tavo nilo", "blue stone"], ["sola vela", "big sun"], ["vira rusa", "red bird"]],
+          rightOrder: ["blue stone", "red bird", "big fish", "big sun", "small cloud"] }
       ] }
   ];
 

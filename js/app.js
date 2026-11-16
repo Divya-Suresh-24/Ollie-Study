@@ -245,7 +245,8 @@
     if (!b) return;
     const locked = finishLocked();
     b.classList.toggle("locked", locked);
-    b.title = locked ? `Unlocks after Lesson ${CORE} and ${Math.round(T.unlock)} minutes of practice` : "End your session";
+    b.removeAttribute("title"); b.dataset.tip = tipFinish();
+    if (lt) lt.dataset.tip = tipFinish();
     b.innerHTML = locked ? `<span aria-hidden="true">🔒</span> Finish <small>${esc(chipText().replace(/^🔒 Finish: /, ""))}</small>` : "Finish";
   }
   function timeWarning() {
@@ -308,16 +309,22 @@
   // Ollie in the side panel reacts to each answer (versions with Ollie).
   const REACT = {
     start:   [["cheer", "Let's do this!"], ["wave", "Ready? I'm right here."]],
-    correct: [["happy", "Yay! You got it!"], ["clap", "So good!"], ["star", "Wow, look at you go!"], ["love", "That's right!"]],
-    wrong:   [["encourage", "Almost! You've got this."], ["encourage", "Good try! Let's keep going."]],
+    next:    [["think", "Your turn!"], ["happy", "Take your time."], ["wave", "Next one!"], ["encourage", "You can do this."], ["think", "Hmm, let's see…"], ["happy", "Here we go!"]],
+    correct: [["happy", "Yay! You got it!"], ["clap", "So good!"], ["star", "Wow, look at you go!"], ["love", "That's right!"], ["cheer", "Nailed it!"], ["happy", "Yes! Well done."]],
+    wrong:   [["encourage", "Almost! You've got this."], ["encourage", "Good try! Let's keep going."], ["encourage", "Close! You'll get the next one."]],
     combo:   [["star", "You're on fire!"]],
     done:    [["cheer", "We did it!"]]
   };
+  const lastLine = {};
   function react(what) {
     if (!mascot()) { const c = document.getElementById("sp-msg"); if (c) c.hidden = true; return; }
     const box = document.getElementById("side-ollie");
     if (!box) return;
-    const opts = REACT[what], [mood, line] = opts[rnd(opts.length)];
+    const opts = REACT[what];
+    let i = rnd(opts.length);
+    if (opts.length > 1 && i === lastLine[what]) i = (i + 1 + rnd(opts.length - 1)) % opts.length;   // never the same line twice in a row
+    lastLine[what] = i;
+    const [mood, line] = opts[i];
     box.innerHTML = `${Art.ollie(mood, { cls: `motion-${Art.MOTION[mood] || "none"} play` })}<div class="bubble side-bubble">${esc(line)}</div>`;
   }
 
@@ -572,15 +579,38 @@
   }
 
   /* -------------------------------- header ----------------------------- */
+  const tipStreak = () => `🔥 Streak: lessons and practice rounds finished in a row. Leaving one early resets it. ${CFG.streakBonusAt} or more in a row doubles your shells.`;
+  const tipShells = () => `🐚 Shells: ${CFG.shellsPerCorrect} per correct answer, ${CFG.shellsPerLesson} per lesson, ${CFG.shellsPerPractice} per practice round. They fill your jar and unlock break scenes.`;
+  const tipFinish = () => finishLocked() ? `Finish unlocks when both are done: Lesson ${CORE} and ${Math.round(T.unlock)} minutes of practice.` : "End your session and go to the survey.";
+  // Hover (or keyboard focus) tooltips for anything with data-tip.
+  const $tip = document.createElement("div");
+  $tip.className = "tip"; $tip.setAttribute("role", "tooltip"); $tip.id = "tip";
+  document.body.appendChild($tip);
+  let tipOn = null;
+  function showTip(el) {
+    tipOn = el; $tip.textContent = el.dataset.tip; $tip.classList.add("on");
+    const r = el.getBoundingClientRect(), w = $tip.offsetWidth, h = $tip.offsetHeight;
+    const x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+    let y = r.bottom + 10; if (y + h > innerHeight - 8) y = r.top - h - 10;
+    $tip.style.left = x + "px"; $tip.style.top = y + "px";
+  }
+  const hideTip = () => { tipOn = null; $tip.classList.remove("on"); };
+  const tipFor = e => e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
+  document.addEventListener("mouseover", e => { const el = tipFor(e); if (el === tipOn) return; el ? showTip(el) : hideTip(); });
+  document.addEventListener("focusin", e => { const el = tipFor(e); el && el.matches(":focus-visible") ? showTip(el) : hideTip(); });
+  document.addEventListener("focusout", hideTip);
+  document.addEventListener("click", hideTip, true);
+  addEventListener("scroll", hideTip, true);
+
   function header(help = false) {
     return `<header class="topbar">
       <div class="brand small">${Art.logo}<span>Pelan</span></div>
       <div class="stats">
-        <span class="stat streak-chip ${bonusOn() ? "hot" : ""}" id="stat-streak" title="Streak: lessons and rounds finished in a row">🔥 <b>${S.streak}</b>${bonusOn() ? `<em>${CFG.streakBonusMult}× 🐚</em>` : ""}</span>
-        <span class="stat" id="stat-shells" title="Shells: collect them to unlock ${mascot() ? "Ollie's tricks" : "animations"}">🐚 <b>${S.shells}</b></span>
-        <span class="stat soft" title="Lessons">📘 <b>${lessonsDone()}/${NL}</b></span>
+        <span class="stat streak-chip ${bonusOn() ? "hot" : ""}" id="stat-streak" data-tip="${esc(tipStreak())}">🔥 <b>${S.streak}</b>${bonusOn() ? `<em>${CFG.streakBonusMult}× 🐚</em>` : ""}</span>
+        <span class="stat" id="stat-shells" data-tip="${esc(tipShells())}">🐚 <b>${S.shells}</b></span>
+        <span class="stat soft" data-tip="📘 Lessons finished: ${lessonsDone()} of ${NL}. Each lesson unlocks the next.">📘 <b>${lessonsDone()}/${NL}</b></span>
       </div>
-      <div class="top-actions">${help ? `<button class="help-btn" id="home-help" aria-label="Help">?<span>Help</span></button>` : ""}<button class="btn-finish" id="btn-finish">Finish</button></div></header>`;
+      <div class="top-actions">${help ? `<button class="help-btn" id="home-help" aria-label="Help" data-tip="Word list, how Finish unlocks, and how shells and streak work">?<span>Help</span></button>` : ""}<button class="btn-finish" id="btn-finish">Finish</button></div></header>`;
   }
   function wireHeader(context) {
     const b = $app.querySelector("#btn-finish");
@@ -605,7 +635,7 @@
     if (S.goal.active || extra.goalMet) {
       const g = pick(S.goal.active ? "goal" : "goalMet");
       Log.log(S.goal.active ? "goal_shown" : "goal_met_shown", { context, text: g.text, kind: g.kind, streak: S.streak });
-      goalHtml = `<div class="goal ${S.goal.active ? "" : "met"}"><span class="goal-i">${S.goal.active ? "🎯" : "✅"}</span><span>${esc(g.text)}</span></div>`;
+      goalHtml = `<div class="goal ${S.goal.active ? "" : "met"}" data-tip="Session goal: finish one practice round after each lesson to keep your 🔥 streak going."><span class="goal-i">${S.goal.active ? "🎯" : "✅"}</span><span>${esc(g.text)}</span></div>`;
     }
     const offsets = [0, -60, -24, 40, 64, 16, -50, -70, -16, 44, 10, -44];
     const credit = `+${CFG.shellsPerPractice} 🐚 +1 🔥`;
@@ -620,7 +650,7 @@
           <span class="node-l"><b>Lesson ${L.n}</b><small>${esc(L.title)}</small></span>
           <span class="node-pop" id="np-${L.n}" role="tooltip"><b>Lesson ${L.n} · ${esc(L.title)}</b><span>${esc(L.goal)}</span>
             ${words.length ? `<span class="np-words">New words: ${esc(words.join(", "))}</span>` : ""}
-            <span class="np-meta">${fN} questions · about 3 min</span><span class="np-st ${st}">${status}</span></span></button>`;
+            <span class="np-meta">${fN} questions · earns +${CFG.shellsPerLesson} 🐚 +1 🔥</span><span class="np-st ${st}">${status}</span></span></button>`;
     };
     const chapter = (k, icon, title, sub) => `<div class="chapter"><span class="ch-i">${icon}</span><span><b>Chapter ${k} · ${title}</b><small>${sub}</small></span></div>`;
     $app.innerHTML = `
@@ -649,8 +679,8 @@
             <section class="panel practice">
               <h2 class="panel-h">Practice <small>each earns ${credit}</small></h2>
               ${goalHtml}
-              <div class="modes">${modes.map(md => `<button class="mode" data-mode="${md.id}"><span class="mode-i">${md.icon}</span><span class="mode-t"><b>${md.title}</b><small>${md.sub}</small></span><span class="credit">${credit}</span></button>`).join("")}</div>
-              <button class="act" id="home-break"><span class="act-i">${mascot() ? "🦦" : "🌅"}</span><span><b>Take a break</b><small>${mascot() ? "Watch Ollie play" : "Watch a short animation"}</small></span></button>
+              <div class="modes">${modes.map(md => `<button class="mode" data-mode="${md.id}" data-tip="${esc(md.tip)}"><span class="mode-i">${md.icon}</span><span class="mode-t"><b>${md.title}</b><small>${md.sub}</small></span><span class="credit">${credit}</span></button>`).join("")}</div>
+              <button class="act" id="home-break" data-tip="${mascot() ? "Watch Ollie in a short scene" : "Watch a short scene"}. Unlock more scenes with shells. Come back any time."><span class="act-i">${mascot() ? "🦦" : "🌅"}</span><span><b>Take a break</b><small>${mascot() ? "Watch Ollie play" : "Watch a short animation"}</small></span></button>
             </section>` : ""}
           </aside>
         </div>
@@ -686,9 +716,9 @@
       </div></section>`;
   }
   const MODES = () => [
-    { id: "passive", icon: mascot() ? "🦦" : "📺", title: mascot() ? "Watch Ollie explain" : "Watch and read", sub: "Sit back and watch" },
-    { id: "easy",    icon: "👀", title: "Quick review",         sub: "Tap matching pictures" },
-    { id: "active",  icon: "💪", title: "Weak words",           sub: "Type the ones you missed" }
+    { id: "passive", icon: mascot() ? "🦦" : "📺", title: mascot() ? "Watch Ollie explain" : "Watch and read", sub: "Sit back and watch", tip: `${mascot() ? "Ollie shows" : "See"} words you've learned with their meanings. No answers needed.` },
+    { id: "easy",    icon: "👀", title: "Quick review",         sub: "Tap matching pictures", tip: "Easy picture questions on words you've learned." },
+    { id: "active",  icon: "💪", title: "Weak words",           sub: "Type the ones you missed", tip: "Type the Pelan words you got wrong before (or random ones if none)." }
   ];
   // Coming back after leaving early (contingent relief in the guilt versions)
   function maybeReturn() {
@@ -760,6 +790,7 @@
     ov.className = "overlay";
     ov.innerHTML = `
       <div class="sheet lesson-start" role="dialog" aria-modal="true" aria-labelledby="ls-t">
+        <button class="x-btn sheet-x" id="ls-cancel" aria-label="Back to the map" data-tip="Back to the map">✕</button>
         <div class="ls-head">
           ${mascot() ? `<div class="ls-ollie">${Art.ollie("cheer", { cls: "motion-jump play" })}</div>` : ""}
           <div><div class="lesson-badge">Lesson ${n} of ${NL}${redo ? " · review" : ""}</div>
@@ -767,14 +798,13 @@
         </div>
         ${redo ? `
         <div class="len-grid">
-          <button class="len" data-len="quick"><b>Quick review</b><small>${qN} questions · about 1 min</small>${credit}</button>
-          <button class="len" data-len="full"><b>Full lesson again</b><small>${fN} questions · about 3 min</small>${credit}</button>
+          <button class="len" data-len="quick"><b>Quick review</b><small>${qN} questions</small>${credit}</button>
+          <button class="len" data-len="full"><b>Full lesson again</b><small>${fN} questions</small>${credit}</button>
         </div>
         <p class="hint center">Both count the same.</p>` : `
-        <div class="len-one"><span>${fN} questions · about 3 min</span>${credit}</div>
+        <div class="len-one"><span>${fN} questions</span>${credit}</div>
         <button class="btn btn-primary len-go" data-len="full">Start lesson</button>
         <p class="hint center">After you finish it, you can come back for a quick review any time.</p>`}
-        <button class="btn btn-quiet" id="ls-cancel">Back to the map</button>
       </div>`;
     $modal.appendChild(ov);
     ov.querySelectorAll(".len, .len-go").forEach(b => b.onclick = () => {
@@ -783,7 +813,9 @@
       ov.remove();
       startLesson(n, b.dataset.len);
     });
-    ov.querySelector("#ls-cancel").onclick = () => { Log.log("lesson_start_cancel", { lesson: n, dwell_ms: ms(t0) }); ov.remove(); };
+    const cancel = () => { Log.log("lesson_start_cancel", { lesson: n, dwell_ms: ms(t0) }); ov.remove(); };
+    ov.querySelector("#ls-cancel").onclick = cancel;
+    ov.onclick = e => { if (e.target === ov) cancel(); };
   }
 
   /* ---------------------------- round runner --------------------------- */
@@ -840,19 +872,19 @@
             <div class="river-shell" style="left:${pct}%">🐚</div>
           </div>
           <span class="count">${R.pos + 1}/${total}</span>
-          ${helpAllowed() ? `<button class="help-btn" id="btn-help" aria-label="Help">?<span>Help</span></button>` : ""}
+          ${helpAllowed() ? `<button class="help-btn" id="btn-help" aria-label="Help" data-tip="How this question works, word list, Finish, shells and streak">?<span>Help</span></button>` : ""}
         </div>
         <div class="lesson-stats">
-          <span class="stat streak-chip ${bonusOn() ? "hot" : ""}" id="ls-streak" title="Streak">🔥 <b>${S.streak}</b>${bonusOn() ? `<em>${CFG.streakBonusMult}× 🐚</em>` : ""}</span>
-          <span class="stat" id="ls-shells" title="Shells">🐚 <b>${S.shells}</b></span>
-          <span class="stat timer-chip ${finishLocked() ? "" : "open"}" id="ls-timer">${esc(chipText())}</span>
+          <span class="stat streak-chip ${bonusOn() ? "hot" : ""}" id="ls-streak" data-tip="${esc(tipStreak())}">🔥 <b>${S.streak}</b>${bonusOn() ? `<em>${CFG.streakBonusMult}× 🐚</em>` : ""}</span>
+          <span class="stat" id="ls-shells" data-tip="${esc(tipShells())}">🐚 <b>${S.shells}</b></span>
+          <span class="stat timer-chip ${finishLocked() ? "" : "open"}" id="ls-timer" data-tip="${esc(tipFinish())}">${esc(chipText())}</span>
         </div>
         <div class="lesson-grid">
           <section class="lesson-main">
             <div class="type-row">
               <div class="type-tag qpill tone-${T.tone}"><span class="qp-i" aria-hidden="true">${T.icon}</span><b>${T.label}</b></div>
               <span class="qp-how">${T.how.split(". ")[0]}.</span>
-              <div class="combo ${S.combo >= 2 ? "on" : ""}" id="combo">🔥 ${S.combo} in a row</div>
+              <div class="combo ${S.combo >= 2 ? "on" : ""}" id="combo" data-tip="Correct answers in a row in this session">🔥 ${S.combo} in a row</div>
             </div>
             <div class="lesson-body" id="body"></div>
             <div class="foot" id="foot"></div>
@@ -863,7 +895,7 @@
     if (!mascot()) { const p = $app.querySelector("#sp-pos"); if (p) p.textContent = `${R.pos + 1} of ${total}`; const c = $app.querySelector("#sp-combo"); if (c) c.textContent = S.combo; const sh = $app.querySelector("#sp-shells"); if (sh) sh.textContent = R.shells; }
     $app.querySelector("#btn-x").onclick = () => attemptLeave();
     const hb = $app.querySelector("#btn-help"); if (hb) hb.onclick = () => openHelp(it);
-    if (first) react("start");
+    react(first ? "start" : "next");   // new question: fresh Ollie line (text versions: message card cleared)
     const view = RENDER[it.type](it);
     let tShown = now();
     if (R.kind === "lesson" && !R.nudged && R.pos === R.mid) { R.nudged = true; setTimeout(nudge, 700); }
@@ -877,28 +909,52 @@
       bar.querySelector("#cont").onclick = () => { Log.log("item_view", { round: R.id, item: it.id, type: it.type, dwell_ms: ms(tShown) }); advance(); };
       return;
     }
-    if (view.auto) { view.onDone = res => grade(it, res, tShown); return; }
-    const hint = helpAllowed() ? hintFor(it) : "";
-    bar.innerHTML = `<div class="fb-inner">${hint ? `<button class="btn-hint" id="hint" type="button">💡 Hint</button>` : "<span></span>"}<button class="btn btn-primary btn-cta" id="check" disabled>Check</button></div>`;
-    const $check = bar.querySelector("#check");
-    const $hint = bar.querySelector("#hint");
-    if ($hint) $hint.onclick = () => {
-      S.help.hints = (S.help.hints || 0) + 1; save();
-      Log.log("hint_open", { round: R.id, item: it.id, type: it.type, after_ms: ms(tShown) });
-      $hint.outerHTML = `<span class="hint-text" role="status">💡 ${esc(hint)}</span>`;
+    const hint = helpAllowed() ? hintFor(it) : null;
+    const hintBtn = hint ? `<button class="btn-hint" id="hint" type="button">💡 Hint</button>` : "<span></span>";
+    const wireHint = () => {
+      const $hint = bar.querySelector("#hint");
+      if ($hint) $hint.onclick = () => {
+        S.help.hints = (S.help.hints || 0) + 1; save();
+        Log.log("hint_open", { round: R.id, item: it.id, type: it.type, after_ms: ms(tShown) });
+        $hint.outerHTML = `<span class="hint-text" role="status">💡 ${esc(useHint(it, hint))}</span>`;
+      };
     };
+    if (view.auto) {
+      const fi = bar.querySelector(".fb-inner"); if (fi && hint) { fi.insertAdjacentHTML("afterbegin", hintBtn); wireHint(); }
+      view.onDone = res => grade(it, res, tShown); return;
+    }
+    bar.innerHTML = `<div class="fb-inner">${hintBtn}<button class="btn btn-primary btn-cta" id="check" disabled>Check</button></div>`;
+    const $check = bar.querySelector("#check");
+    wireHint();
     view.onChange = ready => { $check.disabled = !ready; };
     $check.onclick = () => grade(it, view.result(), tShown);
   }
   // A clue for this question. Uses the item's own hint, or a general one by type.
+  // A clue for every question. Choice questions cross out one wrong answer;
+  // the others give a text clue (the item's own hint, or one by type).
   function hintFor(it) {
-    if (it.hint) return it.hint;
     const a = typeof it.answer === "string" ? it.answer : "";
-    if (it.type === "type") return a.includes(" ") ? "Thing-word first, then the describing word. It copies the ending." : `It starts with “${a[0]}”.`;
-    if (it.type === "build") return "Thing-word first, then the describing word. It copies the ending (-a or -o).";
-    if (it.type === "judge") return "Check the order and the ending: -a goes with -a, -o goes with -o.";
-    if (it.type === "pick_text" && it.big) return `Think back to the picture that went with “${it.big}”.`;
-    return "";
+    if (it.type === "pick_text" || it.type === "pick_pic") return { text: "One wrong answer is crossed out.", strike: true };
+    if (it.hint) return { text: it.hint };
+    if (it.type === "type") return { text: a.includes(" ") ? "Thing-word first, then the describing word. It copies the ending." : `It starts with “${a[0]}”.` };
+    if (it.type === "build") return { text: `Start with “${a.split(" ")[0]}”. The describing word copies its ending (-a or -o).` };
+    if (it.type === "judge") return { text: "Check the order and the ending: -a goes with -a, -o goes with -o." };
+    if (it.type === "match") return { text: "One pair is shown for you.", pair: true };
+    return null;
+  }
+  function useHint(it, h) {
+    if (h.strike) {
+      const wrong = [...document.querySelectorAll("#body .opt, #body .tile")].filter(b => b.dataset.k !== it.answer && !b.disabled);
+      const opts = wrong.filter(b => !b.classList.contains("sel")).length ? wrong.filter(b => !b.classList.contains("sel")) : wrong;
+      const b = opts[rnd(opts.length)];
+      if (b) { const was = b.classList.contains("sel"); b.classList.add("ruled-out"); b.disabled = true; b.classList.remove("sel"); if (was) { const c = document.querySelector("#check"); if (c) c.disabled = true; } b.setAttribute("aria-label", (b.getAttribute("aria-label") || b.textContent) + " (crossed out)"); }
+    }
+    if (h.pair) {
+      const left = [...document.querySelectorAll('#body .chip[data-side="L"]:not(.gone)')];
+      const l = left[0], pr = l && it.pairs.find(p => p[0] === l.dataset.w);
+      if (pr) return `“${pr[0]}” means “${pr[1]}”.`;
+    }
+    return h.text;
   }
   // Hint and Help only in a lesson's first run (not in reviews or practice rounds).
   const helpAllowed = () => R && R.kind === "lesson" && !R.redo;
@@ -1622,6 +1678,6 @@
     d.querySelector("#dbg-r").onclick = () => { localStorage.removeItem(STORE); location.reload(); };
   }
 
-  if (DEBUG || PREVIEW) window.__pelan = { round: () => R, state: () => S, pick, stage, summary: () => summary(), visibleMin, coreDone };
+  if (DEBUG || PREVIEW) window.__pelan = { round: () => R, state: () => S, content: P, pick, stage, summary: () => summary(), visibleMin, coreDone };
   boot();
 })();

@@ -255,7 +255,7 @@ window.Art = (function () {
         label = "A fish leaping over the river";
         inner = riverBg()
           + (O ? `<g class="a-bob">${at(70, 112, .5, otter("star", "up"))}</g>` : "")
-          + `<g class="a-leap" style="transform-origin:20px 196px"><g transform="translate(20 196)">${fishShape}</g></g>`
+          + `<g class="a-leap" style="transform-origin:20px 196px"><g transform="translate(20 196) scale(-1 1)">${fishShape}</g></g>`
           + front(198) + ring(28, 200, 0) + ring(214, 200, 1.1)
           + `<g class="a-drops" fill="#fff">${[[30, 188], [38, 184], [206, 186], [218, 182]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.5"/>`).join("")}</g>`;
         break;

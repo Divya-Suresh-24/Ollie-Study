@@ -124,6 +124,10 @@ async def run(g):
         await pg.hover("#node-3"); await pg.wait_for_timeout(250)
         check("hovering a locked lesson says how to unlock it", "Finish Lesson 2 to unlock" in await pg.inner_text("#np-3") and await pg.is_visible("#np-3"))
         check("lesson map grouped into two chapters", len(await pg.query_selector_all(".chapter")) == 2)
+        tips = await pg.evaluate("[...document.querySelectorAll('[data-tip]')].map(e=>e.id||e.className)")
+        check("hover tips on streak, shells, lessons, Help, Finish", all(any(k in t for t in tips) for k in ["stat-streak", "stat-shells", "soft", "home-help", "btn-finish"]), str(tips))
+        await pg.hover("#stat-shells"); await pg.wait_for_timeout(200)
+        check("hovering shells explains them", await pg.is_visible("#tip") and "per correct answer" in await pg.inner_text("#tip"))
         await pg.click("#home-help"); await pg.wait_for_timeout(150)
         check("Help on home: word list, Finish and shells guide", len(await pg.query_selector_all(".help .tab")) == 3)
         await pg.click("#help-ok")
@@ -133,6 +137,8 @@ async def run(g):
         await pg.click(".len-go"); await pg.wait_for_timeout(300)
         check("Help and Finish timer shown in a first-run lesson", bool(await pg.query_selector("#btn-help")) and bool(await pg.query_selector("#ls-timer")))
         check("question type shown as an icon label", bool(await pg.query_selector(".type-tag.qpill .qp-i")))
+        mx = await pg.evaluate("Math.max(...window.__pelan.content.lessons.flatMap(L=>L.items.filter(x=>x.type==='match').map(x=>x.pairs.length)))")
+        check("match questions have at most 5 pairs", mx <= 5, str(mx))
         seen = {}
         async def on_graded(pg, wrong):
             if wrong and "wrong" not in seen:
@@ -220,16 +226,28 @@ async def run(g):
                 el = await pg.query_selector("#side-ollie .side-bubble.said") if sp["mascot"] else await pg.query_selector("#sp-msg:not([hidden])")
                 check("5 in a row: Ollie celebrates in the side panel" if sp["mascot"] else "5 in a row: message card in the side panel", bool(el))
                 await pg.screenshot(path=f"{SHOTS}/v{g}_combo.png")
-        # Hint: open it on the first typing question
+        # Hint: a choice question crosses out a wrong answer; then open it on the first typing question
+        hinted_pick = False; prev_line = None; fresh = True
         while True:
             it = await item(pg)
+            if await pg.query_selector("#coach-ok"): await pg.click("#coach-ok"); await pg.wait_for_timeout(100)
+            line = await pg.evaluate("(document.querySelector('#side-ollie .side-bubble')||{}).textContent||''") if sp["mascot"] else ""
+            if sp["mascot"] and prev_line is not None and line == prev_line: fresh = False
+            if it["type"] == "pick_text" and not hinted_pick and await pg.query_selector("#hint"):
+                await pg.click("#hint"); await pg.wait_for_timeout(100)
+                check("Hint on a choice question crosses out one wrong answer", len(await pg.query_selector_all("#body .opt.ruled-out")) == 1)
+                hinted_pick = True
             if it["type"] == "type": break
             t = await answer(pg)
-            if t not in ("intro", "rule", "explain", "match"): await watch_combo(pg, False); await pg.click("#cont")
+            if t not in ("intro", "rule", "explain", "match"):
+                await watch_combo(pg, False)
+                prev_line = await pg.evaluate("(document.querySelector('#side-ollie .side-bubble')||{}).textContent||''") if sp["mascot"] else None
+                await pg.click("#cont")
             await pg.wait_for_timeout(40)
         if await pg.query_selector("#coach-ok"): await pg.click("#coach-ok"); await pg.wait_for_timeout(100)
         hb = await pg.query_selector("#hint")
         if hb: await hb.click(); await pg.wait_for_timeout(100)
+        if sp["mascot"]: check("Ollie says something new on each question (no stale line)", fresh)
         check("Hint beside Check in a first-run lesson gives a clue", bool(hb) and bool(await pg.query_selector(".hint-text")))
         await play_round(pg, on_graded=watch_combo)
         if "x" not in combo: check("5-in-a-row pop appeared", False)
